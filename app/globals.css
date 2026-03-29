@@ -1,0 +1,326 @@
+@import "tailwindcss";
+
+@theme inline {
+  /* ── Base palette ── deep navy, professional government portal ── */
+  --color-background: #080e1a;
+  --color-foreground: #e2e8f0;
+  --color-surface:   #0f172a;
+  --color-surface-2: #1e293b;
+  --color-border:    #1e3a5f;
+
+  /* ── Brand: navy blue ── */
+  --color-navy:       #060c18;
+  --color-navy-light: #1e3a5f;
+
+  /* ── PRIMARY ACCENT: proper blue ── */
+  --color-blue-50:  #eff6ff;
+  --color-blue-100: #dbeafe;
+  --color-blue-200: #bfdbfe;
+  --color-blue-300: #93c5fd;
+  --color-blue-400: #60a5fa;   /* accent text / icons on dark */
+  --color-blue-500: #3b82f6;   /* borders / subtle bg */
+  --color-blue-600: #2563eb;   /* ★ primary button bg  */
+  --color-blue-700: #1d4ed8;
+  --color-blue-800: #1e40af;
+  --color-blue-900: #1e3a8a;
+  --color-blue-950: #172554;
+
+  /* ── Secondary accent: indigo ── */
+  --color-indigo:  #4f46e5;
+  --color-violet:  #7c3aed;
+
+  /* ── Supporting palette ── */
+  --color-yellow:        #f59e0b;
+  --color-amber:         #d97706;
+  --color-coral:         #f43f5e;
+  --color-emerald:       #22c55e;
+  --color-emerald-light: #4ade80;
+  --color-teal:          #14b8a6;
+  --color-purple:        #a855f7;
+  --color-pink:          #ec4899;
+
+  /* Semantic */
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-danger:  #ef4444;
+  --color-info:    #60a5fa;
+
+  /* Animations */
+  --animate-float:         float 3s ease-in-out infinite;
+  --animate-glow:          glow 2s ease-in-out infinite alternate;
+  --animate-pulse-slow:    pulse-slow 3s ease-in-out infinite;
+  --animate-slide-up:      slide-up 0.5s ease-out;
+  --animate-fade-in:       fade-in 0.4s ease-out;
+  --animate-shimmer:       shimmer 1.5s infinite;
+  --animate-spin-slow:     spin-slow 8s linear infinite;
+  --animate-bounce-gentle: bounce-gentle 2s ease-in-out infinite;
+}
+
+/* ─── Keyframes ──────────────────────────────────────────────────────────── */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-12px); }
+}
+@keyframes glow {
+  from { box-shadow: 0 0 10px rgba(96,165,250,0.35); }
+  to   { box-shadow: 0 0 32px rgba(96,165,250,0.8), 0 0 64px rgba(96,165,250,0.25); }
+}
+@keyframes pulse-slow {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.6; }
+}
+@keyframes slide-up {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes bounce-gentle {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-6px); }
+}
+
+/* ─── Root & Body ────────────────────────────────────────────────────────── */
+:root {
+  --background: #080e1a;
+  --foreground: #e2e8f0;
+  --hero-gradient: linear-gradient(135deg, #080e1a 0%, #0f172a 60%, #111827 100%);
+  --section-fade: linear-gradient(to bottom, transparent, rgba(15, 23, 42, 0.5));
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────────────────────── */
+::-webkit-scrollbar       { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #0f172a; }
+::-webkit-scrollbar-thumb { background: #1e3a5f; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #3b82f6; }
+
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+
+/* ─── Skeleton ───────────────────────────────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(90deg, #1e293b 25%, #273549 50%, #1e293b 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+
+/* ─── Glass morphism — dark navy tint ───────────────────────────────────── */
+.glass {
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* ─── Glows — blue palette ───────────────────────────────────────────────── */
+.glow-blue    { box-shadow: 0 0 24px rgba(96,165,250,0.55),  0 0 48px rgba(96,165,250,0.2); }
+.glow-emerald { box-shadow: 0 0 24px rgba(34,197,94,0.5),    0 0 48px rgba(34,197,94,0.2); }
+.glow-yellow  { box-shadow: 0 0 24px rgba(245,158,11,0.5),   0 0 48px rgba(245,158,11,0.2); }
+.glow-violet  { box-shadow: 0 0 24px rgba(124,58,237,0.45),  0 0 48px rgba(124,58,237,0.18); }
+.glow-lime    { box-shadow: 0 0 32px rgba(96,165,250,0.6),   0 0 64px rgba(96,165,250,0.22); }
+
+/* ─── Gradient text — blue-to-indigo ────────────────────────────────────── */
+.gradient-text {
+  background: linear-gradient(135deg, #60a5fa 0%, #818cf8 50%, #a78bfa 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Card hover — blue glow lift ───────────────────────────────────────── */
+.card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.5),
+              0 0 0 1px rgba(96,165,250,0.3),
+              0 0 20px rgba(96,165,250,0.15);
+}
+
+/* ─── Scheme category accent borders ────────────────────────────────────── */
+.scheme-agriculture { border-top: 2px solid rgba(96,165,250,0.7); }
+.scheme-health      { border-top: 2px solid rgba(239,68,68,0.6); }
+.scheme-housing     { border-top: 2px solid rgba(96,165,250,0.5); }
+.scheme-education   { border-top: 2px solid rgba(168,85,247,0.6); }
+.scheme-employment  { border-top: 2px solid rgba(245,158,11,0.6); }
+.scheme-women       { border-top: 2px solid rgba(236,72,153,0.6); }
+
+/* ─── Pill badges ────────────────────────────────────────────────────────── */
+.pill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  background: rgba(96,165,250,0.12);
+  border: 1px solid rgba(96,165,250,0.3);
+  color: #93c5fd;
+}
+
+/* ─── Feature card highlight ─────────────────────────────────────────────── */
+.feature-card-highlight {
+  background: linear-gradient(135deg, rgba(96,165,250,0.15), rgba(99,102,241,0.06));
+  border: 1px solid rgba(96,165,250,0.3);
+}
+
+/* ─── Focus ring ─────────────────────────────────────────────────────────── */
+:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   LIGHT THEME — [data-theme="light"]
+   ══════════════════════════════════════════════════════════════════════════ */
+[data-theme="light"] {
+  --background: #f0f4ff;
+  --foreground: #0f172a;
+}
+
+/* Body */
+[data-theme="light"] body {
+  background: #f0f4ff;
+  color: #0f172a;
+}
+[data-theme="light"] {
+  --hero-gradient: linear-gradient(135deg, #f0f4ff 0%, #eef2ff 55%, #dbeafe 100%);
+  --section-fade: linear-gradient(to bottom, transparent, rgba(219, 234, 254, 0.45));
+}
+
+/* ── Scrollbar ── */
+[data-theme="light"] ::-webkit-scrollbar-track { background: #e2e8f0; }
+[data-theme="light"] ::-webkit-scrollbar-thumb { background: #93c5fd; }
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: #2563eb; }
+
+/* ── Skeleton ── */
+[data-theme="light"] .skeleton {
+  background: linear-gradient(90deg, #dbeafe 25%, #bfdbfe 50%, #dbeafe 75%);
+}
+
+/* ── Glass morphism ── */
+[data-theme="light"] .glass {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* ── Sidebar & nav surfaces ── */
+[data-theme="light"] .bg-surface   { background-color: #ffffff !important; }
+[data-theme="light"] .bg-surface-2 { background-color: #eff6ff !important; }
+[data-theme="light"] .border-navy-light\/50 { border-color: rgba(37,99,235,0.2) !important; }
+[data-theme="light"] .border-navy-light\/30 { border-color: rgba(37,99,235,0.15) !important; }
+[data-theme="light"] .border-navy-light\/20 { border-color: rgba(37,99,235,0.12) !important; }
+
+/* ── Text ── */
+[data-theme="light"] .text-slate-400 { color: #475569 !important; }
+[data-theme="light"] .text-slate-500 { color: #64748b !important; }
+[data-theme="light"] .text-slate-300 { color: #334155 !important; }
+[data-theme="light"] .text-slate-200 { color: #1e293b !important; }
+[data-theme="light"] .text-white     { color: #0f172a !important; }
+
+/* ── Card backgrounds ── */
+[data-theme="light"] .bg-\[\#0f172a\]  { background-color: #ffffff !important; }
+[data-theme="light"] .bg-\[\#1e293b\]  { background-color: #f8faff !important; }
+[data-theme="light"] .bg-\[\#080e1a\]  { background-color: #f0f4ff !important; }
+[data-theme="light"] .bg-\[\#0c1208\]  { background-color: #ffffff !important; }
+[data-theme="light"] .bg-\[\#131a0d\]  { background-color: #f8faff !important; }
+[data-theme="light"] .bg-\[\#060b04\]  { background-color: #f0f4ff !important; }
+[data-theme="light"] .bg-\[\#080e05\]  { background-color: #fafcff !important; }
+
+/* ── Border colours ── */
+[data-theme="light"] .border-navy-light\/40 { border-color: rgba(37,99,235,0.15) !important; }
+
+/* ── Card hover on light ── */
+[data-theme="light"] .card-hover:hover {
+  box-shadow: 0 12px 32px rgba(37,99,235,0.12),
+              0 0 0 1px rgba(59,130,246,0.25),
+              0 0 16px rgba(96,165,250,0.1);
+}
+
+/* ── Sidebar active item ── */
+[data-theme="light"] .bg-blue-500\/20 { background-color: rgba(59,130,246,0.12) !important; }
+[data-theme="light"] .text-blue-400   { color: #2563eb !important; }
+
+/* ── AI Guide panel ── */
+[data-theme="light"] .fixed.right-0.bg-\[\#080e05\] {
+  background-color: #fafcff !important;
+}
+
+/* ── Bottom nav ── */
+[data-theme="light"] .bg-\[\#080d05\]\/95 { background-color: rgba(255,255,255,0.95) !important; }
+[data-theme="light"] .bg-\[\#0c1208\]\/95 { background-color: rgba(255,255,255,0.95) !important; }
+
+/* ── Input / form fields ── */
+[data-theme="light"] input[type="text"],
+[data-theme="light"] input[type="email"],
+[data-theme="light"] input[type="search"],
+[data-theme="light"] select,
+[data-theme="light"] textarea {
+  background-color: #ffffff;
+  color: #0f172a;
+  border-color: rgba(37,99,235,0.25);
+}
+[data-theme="light"] input::placeholder,
+[data-theme="light"] textarea::placeholder { color: #94a3b8; }
+
+/* ── Pill badge ── */
+[data-theme="light"] .pill-badge {
+  background: rgba(37,99,235,0.08);
+  border-color: rgba(37,99,235,0.25);
+  color: #1d4ed8;
+}
+
+/* ── Feature card highlight ── */
+[data-theme="light"] .feature-card-highlight {
+  background: linear-gradient(135deg, rgba(96,165,250,0.1), rgba(99,102,241,0.04));
+  border-color: rgba(37,99,235,0.2);
+}
+
+/* ── Glow on light (subtler) ── */
+[data-theme="light"] .glow-lime {
+  box-shadow: 0 0 20px rgba(37,99,235,0.3), 0 0 40px rgba(37,99,235,0.1);
+}
+[data-theme="light"] .glow-blue {
+  box-shadow: 0 0 16px rgba(37,99,235,0.25), 0 0 32px rgba(37,99,235,0.08);
+}
+
+/* ── Backdrop blur overlay (mobile AI panel) ── */
+[data-theme="light"] .backdrop-blur-sm { backdrop-filter: blur(4px); }
+
+/* ── Gradient backgrounds in hero / landing ── */
+[data-theme="light"] .from-\[\#060b04\] { --tw-gradient-from: #f0f4ff; }
+[data-theme="light"] .to-\[\#0c1208\]   { --tw-gradient-to: #e0eaff; }
+
+/* ── Notification / badge chips ── */
+[data-theme="light"] .bg-blue-500\/10  { background-color: rgba(37,99,235,0.07) !important; }
+[data-theme="light"] .border-blue-500\/20 { border-color: rgba(37,99,235,0.18) !important; }
+[data-theme="light"] .text-blue-400    { color: #2563eb !important; }
+
+/* ── Tooltip / hover popups ── */
+[data-theme="light"] .bg-surface-2.text-white {
+  background-color: #eff6ff !important;
+  color: #0f172a !important;
+  border-color: rgba(37,99,235,0.2) !important;
+}
