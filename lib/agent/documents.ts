@@ -1,5 +1,5 @@
 import { schemes } from "@/lib/data/schemes";
-import type { ApplicationDraft, ChecklistItem, DocumentChecklist, DraftField, UserProfile } from "./types";
+import type { ApplicationDraft, ChecklistItem, DocType, DocumentChecklist, DraftField, UserProfile } from "./types";
 
 // ─── Document checklist ──────────────────────────────────────────────────────
 
@@ -23,6 +23,22 @@ const DOC_INFO: { match: RegExp; whereToGet: string; inDigiLocker: boolean }[] =
   { match: /death|divorce|court/i, whereToGet: "Municipal registrar (death certificate) or family court (decree)", inDigiLocker: true },
   { match: /mobile/i, whereToGet: "Mobile number linked to your Aadhaar / bank", inDigiLocker: false },
 ];
+
+// Which checklist documents an uploaded document satisfies.
+const DOC_TYPE_MATCH: Record<DocType, RegExp | null> = {
+  aadhaar: /aadhaar/i,
+  ration_card: /ration/i,
+  income_certificate: /income/i,
+  bank_passbook: /bank|passbook|cheque/i,
+  land_record: /land|khatauni|7\/12|patta/i,
+  caste_certificate: /caste|sc\/st/i,
+  other: null,
+};
+
+/** True if the citizen already uploaded a document that satisfies this checklist entry. */
+export function docUploaded(doc: string, profile: UserProfile): boolean {
+  return (profile.uploadedDocs ?? []).some(t => DOC_TYPE_MATCH[t]?.test(doc));
+}
 
 function docInfo(doc: string) {
   return DOC_INFO.find(d => d.match.test(doc)) ?? { whereToGet: "Issuing government office / CSC centre", inDigiLocker: false };
@@ -51,7 +67,10 @@ export function buildChecklist(schemeId: string, profile: UserProfile): Document
     if (/land/.test(lower)) reason = "Proves land ownership and size";
 
     const info = docInfo(doc);
-    items.push({ document: doc, reason, whereToGet: info.whereToGet, inDigiLocker: info.inDigiLocker, required });
+    items.push({
+      document: doc, reason, whereToGet: info.whereToGet, inDigiLocker: info.inDigiLocker, required,
+      have: docUploaded(doc, profile),
+    });
   }
 
   // Extra documents implied by the profile
@@ -74,28 +93,29 @@ const CATEGORY_LABEL: Record<string, string> = { general: "General", sc: "SC", s
 
 function valueFor(fieldName: string, p: UserProfile): { value: string; source: DraftField["source"] } | null {
   const f = fieldName.toLowerCase();
-  const v = (value: string | undefined, source: DraftField["source"] = "profile") =>
-    value ? { value, source } : null;
+  // Values read off an uploaded document are marked so the review card can say so.
+  const v = (value: string | undefined, key?: keyof UserProfile) =>
+    value ? { value, source: (key && p.docSources?.[key] ? "document" : "profile") as DraftField["source"] } : null;
 
-  if (/aadhaar/.test(f)) return v(p.aadhaarLast4 ? `XXXX XXXX ${p.aadhaarLast4}` : undefined);
-  if (/father|husband/.test(f)) return v(p.fatherOrHusbandName);
-  if (/(farmer|applicant|head of family|student|full|^)\s*name/.test(f) && !/school|institute|bank|business|hospital/.test(f)) return v(p.name);
-  if (/date of birth|dob/.test(f)) return v(p.dateOfBirth);
-  if (/^age/.test(f)) return v(p.age?.toString());
-  if (/gender/.test(f)) return v(p.gender ? p.gender[0].toUpperCase() + p.gender.slice(1) : undefined);
+  if (/aadhaar/.test(f)) return v(p.aadhaarLast4 ? `XXXX XXXX ${p.aadhaarLast4}` : undefined, "aadhaarLast4");
+  if (/father|husband/.test(f)) return v(p.fatherOrHusbandName, "fatherOrHusbandName");
+  if (/(farmer|applicant|head of family|student|full|^)\s*name/.test(f) && !/school|institute|bank|business|hospital/.test(f)) return v(p.name, "name");
+  if (/date of birth|dob/.test(f)) return v(p.dateOfBirth, "dateOfBirth");
+  if (/^age/.test(f)) return v(p.age?.toString(), "age");
+  if (/gender/.test(f)) return v(p.gender ? p.gender[0].toUpperCase() + p.gender.slice(1) : undefined, "gender");
   if (/state.*district|state \/ /.test(f)) {
     const parts = [p.state, p.district].filter(Boolean);
-    return parts.length ? { value: parts.join(" → "), source: "profile" } : null;
+    return v(parts.join(" → ") || undefined, "district");
   }
-  if (/^state$|^state\b/.test(f)) return v(p.state);
-  if (/district/.test(f)) return v(p.district);
-  if (/village|ward/.test(f)) return v(p.village);
-  if (/account number|bank account/.test(f)) return v(p.bankAccountLast4 ? `XXXXXX${p.bankAccountLast4}` : undefined);
-  if (/ifsc/.test(f)) return v(p.ifsc);
-  if (/land holding|hectare/.test(f)) return v(p.landHectares?.toString());
+  if (/^state$|^state\b/.test(f)) return v(p.state, "state");
+  if (/district/.test(f)) return v(p.district, "district");
+  if (/village|ward/.test(f)) return v(p.village, "village");
+  if (/account number|bank account/.test(f)) return v(p.bankAccountLast4 ? `XXXXXX${p.bankAccountLast4}` : undefined, "bankAccountLast4");
+  if (/ifsc/.test(f)) return v(p.ifsc, "ifsc");
+  if (/land holding|hectare/.test(f)) return v(p.landHectares?.toString(), "landHectares");
   if (/mobile|phone/.test(f)) return v(p.mobile);
-  if (/income/.test(f) && !/certificate/.test(f)) return v(p.annualIncome !== undefined ? `₹${p.annualIncome.toLocaleString("en-IN")}` : undefined);
-  if (/category|caste/.test(f) && !/certificate/.test(f)) return v(p.category ? CATEGORY_LABEL[p.category] : undefined);
+  if (/income/.test(f) && !/certificate/.test(f)) return v(p.annualIncome !== undefined ? `₹${p.annualIncome.toLocaleString("en-IN")}` : undefined, "annualIncome");
+  if (/category|caste/.test(f) && !/certificate/.test(f)) return v(p.category ? CATEGORY_LABEL[p.category] : undefined, "category");
   if (/marital/.test(f)) return v(p.maritalStatus);
   return null;
 }

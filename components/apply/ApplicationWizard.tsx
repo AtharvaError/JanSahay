@@ -17,6 +17,9 @@ import { useUserData } from "@/contexts/UserDataContext";
 import { buildChecklist } from "@/lib/agent/documents";
 import type { ApplicationDraft, TrackedApplication } from "@/lib/agent/types";
 import DraftReviewCard from "@/components/agent/DraftReviewCard";
+import { DocumentUploadButton, ExtractionReviewCard, extractViaApi } from "@/components/agent/DocumentUpload";
+import { docName, docUi } from "@/lib/agent/documentUi";
+import type { ExtractedDocument, ImageAttachment } from "@/lib/agent/types";
 
 // ─── Wizard step definitions ─────────────────────────────────────────────────
 const STEP_KEYS = [
@@ -121,15 +124,27 @@ const DEFAULT_PORTAL_STEPS = {
 
 // ─── Step 0: Personalised document checklist ─────────────────────────────────
 function StepDocuments({ scheme, onNext }: { scheme: Scheme; onNext: () => void }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const { profile } = useUserData();
   const checklist = buildChecklist(scheme.id, profile);
   const items = checklist?.items ?? [];
-  const [have, setHave] = useState<Set<string>>(new Set());
-  const missing = items.filter(i => i.required && !have.has(i.document)).length;
+  // Manual ticks override; documents already uploaded start ticked.
+  const [ticks, setTicks] = useState<Record<string, boolean>>({});
+  const isHave = (doc: string, uploaded?: boolean) => ticks[doc] ?? Boolean(uploaded);
+  const haveCount = items.filter(i => isHave(i.document, i.have)).length;
+  const missing = items.filter(i => i.required && !isHave(i.document, i.have)).length;
+  const [reading, setReading] = useState(false);
+  const [extraction, setExtraction] = useState<ExtractedDocument | null>(null);
 
-  const toggle = (doc: string) =>
-    setHave(prev => { const n = new Set(prev); if (n.has(doc)) n.delete(doc); else n.add(doc); return n; });
+  const toggle = (doc: string, uploaded?: boolean) => setTicks(prev => ({ ...prev, [doc]: !isHave(doc, uploaded) }));
+
+  const upload = async (image: ImageAttachment) => {
+    setReading(true);
+    const result = await extractViaApi(image);
+    setReading(false);
+    if (result.ok) setExtraction(result.doc);
+    else toast.error(result.unavailable ? docUi(lang, "unavailable") : result.error, { duration: 6000 });
+  };
 
   return (
     <div className="space-y-4">
@@ -139,14 +154,27 @@ function StepDocuments({ scheme, onNext }: { scheme: Scheme; onNext: () => void 
           Personalised for your profile. Tick each document you already have; 📲 ones can be fetched from DigiLocker.
         </p>
         <div className="flex items-center gap-4 mt-3 text-xs">
-          <span className="flex items-center gap-1.5 text-emerald-400"><CheckCircle size={12} /> {have.size} ready</span>
+          <span className="flex items-center gap-1.5 text-emerald-400"><CheckCircle size={12} /> {haveCount} ready</span>
           {missing > 0 && <span className="flex items-center gap-1.5 text-red-400"><XCircle size={12} /> {missing} to collect</span>}
         </div>
       </div>
 
+      {extraction ? (
+        <ExtractionReviewCard
+          extraction={extraction}
+          onSaved={(_, n) => {
+            toast.success(docUi(lang, "saved", { n: String(n), doc: docName(lang, extraction.docType) }));
+            setExtraction(null);
+          }}
+          onDiscard={() => setExtraction(null)}
+        />
+      ) : (
+        <DocumentUploadButton variant="wide" onImage={upload} disabled={reading} />
+      )}
+
       <div className="space-y-2.5">
         {items.map((it, i) => {
-          const ok = have.has(it.document);
+          const ok = isHave(it.document, it.have);
           return (
             <motion.label
               key={it.document}
@@ -158,11 +186,12 @@ function StepDocuments({ scheme, onNext }: { scheme: Scheme; onNext: () => void 
                 ok ? "bg-emerald-500/10 border-emerald-500/25" : "bg-surface-2 border-navy-light/30 hover:border-blue-500/30",
               )}
             >
-              <input type="checkbox" checked={ok} onChange={() => toggle(it.document)} className="mt-1 h-4 w-4 accent-emerald-500" />
+              <input type="checkbox" checked={ok} onChange={() => toggle(it.document, it.have)} className="mt-1 h-4 w-4 accent-emerald-500" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-white">
                   {it.document} {it.inDigiLocker && <span title="Available in DigiLocker">📲</span>}
                   {!it.required && <span className="ml-1 text-[10px] text-slate-500">(if applicable)</span>}
+                  {it.have && <span className="ml-1.5 text-[9px] px-1.5 rounded-full bg-emerald-500/15 text-emerald-300 align-middle">✓ {docUi(lang, "uploaded")}</span>}
                 </p>
                 <p className="text-[11px] text-slate-400 mt-0.5">{it.reason}</p>
                 <p className="text-[11px] text-slate-500 mt-0.5">📍 {it.whereToGet}</p>

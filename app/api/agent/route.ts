@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type { LangCode } from "@/lib/translations";
 import { claudeConfigured, runClaudeAgent } from "@/lib/agent/claude";
 import { runOfflineAgent, type OfflineState } from "@/lib/agent/offline";
+import { validAttachment } from "@/lib/agent/extract.server";
 import type { ChatTurn, TrackedApplication, UserProfile } from "@/lib/agent/types";
 
 const LANGS: LangCode[] = ["en", "hi", "bn", "ta", "mr", "te", "gu", "kn"];
@@ -14,6 +15,7 @@ export async function POST(req: NextRequest) {
     profile?: UserProfile;
     applications?: TrackedApplication[];
     state?: OfflineState;
+    attachment?: unknown;
   };
   try {
     body = await req.json();
@@ -27,6 +29,8 @@ export async function POST(req: NextRequest) {
   const applications = Array.isArray(body.applications) ? body.applications.slice(0, 50) : [];
   const history = Array.isArray(body.history) ? body.history.filter(t => t && typeof t.content === "string") : [];
 
+  const attachment = validAttachment(body.attachment) ? body.attachment : undefined;
+
   const offline = () => runOfflineAgent({ message, lang, profile, state: body.state, applications });
 
   // Opening message is always the deterministic greeting + first question.
@@ -35,7 +39,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const data = await runClaudeAgent({ history, message, lang, profile, applications });
+    const data = await runClaudeAgent({ history, message, lang, profile, applications, attachment });
     return NextResponse.json({ success: true, data });
   } catch (err) {
     console.error("[agent] Claude call failed, falling back to offline agent:", err);

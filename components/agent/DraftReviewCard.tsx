@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { useLang } from "@/contexts/LanguageContext";
 import { useUserData } from "@/contexts/UserDataContext";
 import { ui } from "@/lib/agent/ui";
+import { docUi } from "@/lib/agent/documentUi";
 import { speak } from "@/lib/voice";
 import type { ApplicationDraft, DraftField, TrackedApplication } from "@/lib/agent/types";
 
@@ -107,6 +108,7 @@ export default function DraftReviewCard({
             <span className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400 mb-1">
               {f.field}
               {f.source === "profile" && <span className="text-[9px] px-1.5 rounded-full bg-blue-500/15 text-blue-300">auto</span>}
+              {f.source === "document" && <span className="text-[9px] px-1.5 rounded-full bg-emerald-500/15 text-emerald-300">📄 {docUi(lang, "fromDocument")}</span>}
               {!f.value && <span className="text-[9px] px-1.5 rounded-full bg-red-500/15 text-red-300">{ui(lang, "needsInput")}</span>}
             </span>
             <div className="relative">

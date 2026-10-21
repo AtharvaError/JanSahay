@@ -1,8 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { LangCode } from "@/lib/translations";
 import { languages, schemes } from "@/lib/data/schemes";
-import { TOOL_DEFS, executeTool, type ToolContext } from "./tools.server";
-import type { AgentResponse, ChatTurn, TrackedApplication, UserProfile } from "./types";
+import { TOOL_DEFS, executeToolAsync, type ToolContext } from "./tools.server";
+import type { AgentResponse, ChatTurn, ImageAttachment, TrackedApplication, UserProfile } from "./types";
 
 const MODEL = "claude-opus-5-5";
 const MAX_TOOL_ROUNDS = 8;
@@ -26,7 +26,8 @@ Your job, in order:
 5. Call get_document_checklist for the chosen scheme and explain the documents simply.
 6. Collect the details the form needs (name as on Aadhaar, mobile number, father/husband name, district, village, last 4 digits of Aadhaar), then call prefill_application_form.
 7. After prefill, tell them to check the draft card on screen and press "Confirm & Submit" themselves. You can NEVER submit an application — only the citizen can, after reviewing. Never say it has been submitted.
-8. Use schedule_follow_up for things they must do later (missing documents, checking status), and get_application_status when they ask about an application.
+8. If the citizen attaches a document photo (attachment: yes in the context block), call extract_document. Its fields appear on a review card the citizen confirms themselves — never copy them into update_profile. Encourage uploading Aadhaar, ration card, income certificate, bank passbook or land record to save typing.
+9. Use schedule_follow_up for things they must do later (missing documents, checking status), and get_application_status when they ask about an application.
 
 Language rules:
 - Reply in the language named in the context block (or the language the user writes/speaks in, if different). Use that language's native script (Hindi → Devanagari, Tamil → Tamil script, etc.). Scheme names may stay in English.
@@ -39,11 +40,15 @@ Safety & privacy:
 Available schemes:
 ${SCHEME_CATALOG}`;
 
-function contextBlock(lang: LangCode, profile: UserProfile, applications: TrackedApplication[]) {
+function contextBlock(lang: LangCode, profile: UserProfile, applications: TrackedApplication[], attachment: boolean) {
   const langName = languages.find(l => l.code === lang)?.label ?? "English";
+  const { docSources, uploadedDocs, ...facts } = profile;
+  void docSources;
   return `<context>
 reply_language: ${langName} (${lang})
-saved_profile: ${JSON.stringify(profile)}
+saved_profile: ${JSON.stringify(facts)}
+uploaded_documents: ${JSON.stringify(uploadedDocs ?? [])}
+attachment: ${attachment ? "yes — the citizen attached a document photo this turn" : "no"}
 submitted_applications: ${JSON.stringify(applications.map(a => ({ ref: a.referenceId, scheme: a.schemeId, status: a.status })))}
 </context>`;
 }
@@ -54,14 +59,17 @@ export async function runClaudeAgent(input: {
   lang: LangCode;
   profile: UserProfile;
   applications: TrackedApplication[];
+  attachment?: ImageAttachment;
 }): Promise<AgentResponse> {
-  const ctx: ToolContext = { profile: { ...input.profile }, applications: input.applications, artifacts: {}, traces: [] };
+  const ctx: ToolContext = {
+    profile: { ...input.profile }, applications: input.applications, artifacts: {}, traces: [], attachment: input.attachment,
+  };
 
   const messages: Anthropic.Beta.BetaMessageParam[] = [
     ...input.history.slice(-16).map(t => ({ role: t.role, content: t.content })),
     {
       role: "user",
-      content: `${contextBlock(input.lang, ctx.profile, input.applications)}\n\n${input.message}`,
+      content: `${contextBlock(input.lang, ctx.profile, input.applications, Boolean(input.attachment))}\n\n${input.message}`,
     },
   ];
   // The API requires the first message to be from the user.
@@ -104,14 +112,14 @@ export async function runClaudeAgent(input: {
     messages.push({ role: "assistant", content: response.content });
 
     // All tool results go back in ONE user message.
-    const results: Anthropic.Beta.BetaToolResultBlockParam[] = toolUses.map(tu => {
+    const results: Anthropic.Beta.BetaToolResultBlockParam[] = await Promise.all(toolUses.map(async tu => {
       try {
-        const out = executeTool(tu.name, (tu.input ?? {}) as Record<string, unknown>, ctx);
-        return { type: "tool_result", tool_use_id: tu.id, content: JSON.stringify(out) };
+        const out = await executeToolAsync(tu.name, (tu.input ?? {}) as Record<string, unknown>, ctx);
+        return { type: "tool_result" as const, tool_use_id: tu.id, content: JSON.stringify(out) };
       } catch (err) {
-        return { type: "tool_result", tool_use_id: tu.id, content: `Tool error: ${(err as Error).message}`, is_error: true };
+        return { type: "tool_result" as const, tool_use_id: tu.id, content: `Tool error: ${(err as Error).message}`, is_error: true };
       }
-    });
+    }));
     messages.push({ role: "user", content: results });
   }
 

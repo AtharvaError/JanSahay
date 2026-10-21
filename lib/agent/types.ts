@@ -43,6 +43,9 @@ export interface UserProfile {
   aadhaarLast4?: string;
   bankAccountLast4?: string;
   ifsc?: string;
+  // Provenance of fields filled from an uploaded document (not sent to forms).
+  docSources?: Partial<Record<keyof UserProfile, DocType>>;
+  uploadedDocs?: DocType[];
 }
 
 export const PROFILE_KEYS: (keyof UserProfile)[] = [
@@ -51,6 +54,36 @@ export const PROFILE_KEYS: (keyof UserProfile)[] = [
   "girlChildAge", "maritalStatus", "houseType", "shgMember", "hasBankAccount", "mobile",
   "aadhaarLast4", "bankAccountLast4", "ifsc",
 ];
+
+// ─── Document upload & extraction ────────────────────────────────────────────
+
+export type DocType =
+  | "aadhaar"
+  | "ration_card"
+  | "income_certificate"
+  | "bank_passbook"
+  | "land_record"
+  | "caste_certificate"
+  | "other";
+
+export const DOC_TYPES: DocType[] = [
+  "aadhaar", "ration_card", "income_certificate", "bank_passbook", "land_record", "caste_certificate", "other",
+];
+
+/** Profile fields that can be read off a document. */
+export const EXTRACTABLE_KEYS = [
+  "name", "fatherOrHusbandName", "dateOfBirth", "age", "gender", "village", "district", "state",
+  "category", "annualIncome", "landHectares", "bpl", "ifsc", "aadhaarLast4", "bankAccountLast4",
+] as const satisfies readonly (keyof UserProfile)[];
+export type ExtractableKey = (typeof EXTRACTABLE_KEYS)[number];
+
+export interface ExtractedDocument {
+  extractionId: string;
+  docType: DocType;
+  /** Values as editable strings; only last 4 digits of Aadhaar / account ever appear. */
+  fields: Partial<Record<ExtractableKey, string>>;
+  warnings: string[];
+}
 
 export type RuleStatus = "pass" | "fail" | "unknown";
 
@@ -78,6 +111,7 @@ export interface ChecklistItem {
   whereToGet: string;
   inDigiLocker: boolean;
   required: boolean;
+  have?: boolean; // the citizen has uploaded this document
 }
 
 export interface DocumentChecklist {
@@ -89,7 +123,7 @@ export interface DocumentChecklist {
 export interface DraftField {
   field: string;
   value: string;
-  source: "profile" | "derived" | "needs_input";
+  source: "profile" | "document" | "derived" | "needs_input";
   hint: string;
 }
 
@@ -146,6 +180,7 @@ export interface AgentArtifacts {
   checklist?: DocumentChecklist;
   draft?: ApplicationDraft;
   followUps?: FollowUp[];
+  extraction?: ExtractedDocument; // awaiting the citizen's confirmation
 }
 
 export interface AgentResponse {
@@ -154,6 +189,11 @@ export interface AgentResponse {
   toolCalls: ToolTrace[];
   artifacts: AgentArtifacts;
   engine: "claude" | "offline";
+}
+
+export interface ImageAttachment {
+  data: string; // base64, no data: prefix
+  mediaType: "image/jpeg" | "image/png" | "image/webp";
 }
 
 export interface ChatTurn {

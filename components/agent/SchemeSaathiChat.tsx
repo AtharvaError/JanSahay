@@ -11,8 +11,10 @@ import { useLang } from "@/contexts/LanguageContext";
 import { useUserData } from "@/contexts/UserDataContext";
 import { ui } from "@/lib/agent/ui";
 import { hasVoiceFor, speak, stopSpeaking, useSpeechRecognition } from "@/lib/voice";
-import type { AgentArtifacts, AgentResponse, ToolTrace, TrackedApplication } from "@/lib/agent/types";
+import { docName, docUi } from "@/lib/agent/documentUi";
+import type { AgentArtifacts, AgentResponse, DocType, ImageAttachment, ToolTrace, TrackedApplication } from "@/lib/agent/types";
 import DraftReviewCard from "./DraftReviewCard";
+import { DocumentUploadButton, ExtractionReviewCard, extractViaApi } from "./DocumentUpload";
 
 interface Msg {
   id: string;
@@ -42,6 +44,7 @@ export default function SchemeSaathiChat({ className }: { className?: string }) 
   const [voiceMode, setVoiceMode] = useState(false);
   const [engine, setEngine] = useState<"claude" | "offline" | null>(null);
   const [dismissedDrafts, setDismissedDrafts] = useState<Set<string>>(new Set());
+  const [resolvedExtractions, setResolvedExtractions] = useState<Set<string>>(new Set());
 
   const stt = useSpeechRecognition(lang);
   const agentState = useRef<unknown>(undefined);
@@ -57,7 +60,7 @@ export default function SchemeSaathiChat({ className }: { className?: string }) 
   }, [messages, busy, stt.interim]);
 
   // ─── Talking to the agent ──────────────────────────────────────────────────
-  const callAgent = useCallback(async (message: string): Promise<AgentResponse | null> => {
+  const callAgent = useCallback(async (message: string, attachment?: ImageAttachment): Promise<AgentResponse | null> => {
     const { messages: msgs, profile: p, applications: apps, lang: l } = latest.current;
     const res = await fetch("/api/agent", {
       method: "POST",
@@ -69,6 +72,7 @@ export default function SchemeSaathiChat({ className }: { className?: string }) 
         applications: apps,
         state: agentState.current,
         history: msgs.map(m => ({ role: m.role, content: m.content })),
+        attachment,
       }),
     });
     const json = await res.json();
@@ -88,7 +92,7 @@ export default function SchemeSaathiChat({ className }: { className?: string }) 
   const listenRef = useRef<() => void>(() => {});
   const listenTurn = () => listenRef.current();
 
-  const send = useCallback(async (text: string, opts: { silentUser?: boolean } = {}) => {
+  const send = useCallback(async (text: string, opts: { silentUser?: boolean; attachment?: ImageAttachment } = {}) => {
     const trimmed = text.trim();
     if (!trimmed || busyRef.current) return;
     busyRef.current = true;
@@ -98,7 +102,7 @@ export default function SchemeSaathiChat({ className }: { className?: string }) 
     setInput("");
     setBusy(true);
     try {
-      const data = await callAgent(trimmed);
+      const data = await callAgent(trimmed, opts.attachment);
       if (!data) return;
       agentState.current = (data as { state?: unknown }).state;
       setProfile(data.profile);
@@ -110,8 +114,8 @@ export default function SchemeSaathiChat({ className }: { className?: string }) 
       busyRef.current = false;
       setBusy(false);
       await say(data.reply);
-      // Speech-to-speech loop: after the reply is spoken, listen again — unless a draft needs review.
-      if (latest.current.voiceMode && !data.artifacts.draft) listenTurn();
+      // Speech-to-speech loop: after the reply is spoken, listen again — unless a card needs review.
+      if (latest.current.voiceMode && !data.artifacts.draft && !data.artifacts.extraction) listenTurn();
     } catch {
       toast.error("Network error");
     } finally {
@@ -177,6 +181,35 @@ export default function SchemeSaathiChat({ className }: { className?: string }) 
     })();
   };
 
+  // ─── Document upload ───────────────────────────────────────────────────────
+  const uploadDocument = async (image: ImageAttachment) => {
+    if (busyRef.current) return;
+    // With Claude the agent reads it via its extract_document tool; otherwise call the extractor directly.
+    if (engine === "claude") return send(docUi(lang, "photoSent"), { attachment: image });
+    setMessages(prev => [...prev, { id: newId(), role: "user", content: docUi(lang, "photoSent") }]);
+    busyRef.current = true;
+    setBusy(true);
+    const result = await extractViaApi(image);
+    busyRef.current = false;
+    setBusy(false);
+    if (result.ok) {
+      const content = docUi(lang, "reviewTitle", { doc: docName(lang, result.doc.docType) });
+      setMessages(prev => [...prev, { id: newId(), role: "assistant", content, artifacts: { extraction: result.doc } }]);
+    } else {
+      const content = result.unavailable ? docUi(lang, "unavailable") : result.error;
+      setMessages(prev => [...prev, { id: newId(), role: "assistant", content }]);
+      say(content);
+    }
+  };
+
+  const resolveExtraction = (id: string, savedCount?: number, docType?: DocType) => {
+    setResolvedExtractions(s => new Set(s).add(id));
+    if (savedCount === undefined || !docType) return;
+    const text = docUi(lang, "saved", { n: String(savedCount), doc: docName(lang, docType) });
+    setMessages(prev => [...prev, { id: newId(), role: "assistant", content: text }]);
+    say(text);
+  };
+
   const restart = () => {
     stopSpeaking();
     stt.stop();
@@ -187,6 +220,7 @@ export default function SchemeSaathiChat({ className }: { className?: string }) 
     agentState.current = undefined;
     setMessages([]);
     setDismissedDrafts(new Set());
+    setResolvedExtractions(new Set());
     (async () => {
       setBusy(true);
       const data = await callAgent("__start__");
@@ -307,9 +341,21 @@ export default function SchemeSaathiChat({ className }: { className?: string }) 
                     {m.artifacts.checklist.items.map(it => (
                       <div key={it.document} className="text-[11px] text-slate-300">
                         <span className="font-medium text-white">{it.inDigiLocker ? <Smartphone size={10} className="inline mr-1 text-emerald-400" /> : "• "}{it.document}</span>
+                        {it.have && <span className="ml-1.5 text-[9px] px-1.5 rounded-full bg-emerald-500/15 text-emerald-300">✓ {docUi(lang, "uploaded")}</span>}
                         <span className="block pl-3 text-slate-500">{it.whereToGet}</span>
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {/* Extracted document fields → citizen confirms before saving */}
+                {m.artifacts?.extraction && !resolvedExtractions.has(m.artifacts.extraction.extractionId) && (
+                  <div className="w-full">
+                    <ExtractionReviewCard
+                      extraction={m.artifacts.extraction}
+                      onSaved={(_, n) => resolveExtraction(m.artifacts!.extraction!.extractionId, n, m.artifacts!.extraction!.docType)}
+                      onDiscard={() => resolveExtraction(m.artifacts!.extraction!.extractionId)}
+                    />
                   </div>
                 )}
 
@@ -352,6 +398,7 @@ export default function SchemeSaathiChat({ className }: { className?: string }) 
         >
           {stt.listening ? <MicOff size={17} /> : <Mic size={17} />}
         </button>
+        <DocumentUploadButton onImage={uploadDocument} disabled={busy} />
         <input
           value={input}
           onChange={e => setInput(e.target.value)}

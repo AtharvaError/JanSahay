@@ -3,10 +3,11 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { schemes } from "@/lib/data/schemes";
 import { evaluateAll, evaluateScheme } from "./eligibility";
 import { buildChecklist, prefillForm } from "./documents";
+import { extractDocument } from "./extract.server";
 import type {
-  AgentArtifacts, ApplicationDraft, FollowUp, ToolTrace, TrackedApplication, UserProfile,
+  AgentArtifacts, ApplicationDraft, DocType, FollowUp, ImageAttachment, ToolTrace, TrackedApplication, UserProfile,
 } from "./types";
-import { PROFILE_KEYS } from "./types";
+import { DOC_TYPES, EXTRACTABLE_KEYS, PROFILE_KEYS } from "./types";
 
 // ─── Draft signing ───────────────────────────────────────────────────────────
 // Drafts are signed so the submit endpoint only accepts forms produced by the
@@ -59,6 +60,25 @@ export function mergeProfile(base: UserProfile, patch: Record<string, unknown>):
     }
   }
   return out as UserProfile;
+}
+
+/**
+ * Merge fields the citizen confirmed from an uploaded document, recording which
+ * document each accepted field came from so forms can show "from document".
+ */
+export function mergeExtraction(base: UserProfile, docType: DocType, fields: Record<string, unknown>): UserProfile {
+  const patch: Record<string, unknown> = {};
+  for (const key of EXTRACTABLE_KEYS) if (fields[key] !== undefined) patch[key] = fields[key];
+  const merged = mergeProfile(base, patch);
+  const docSources = { ...base.docSources };
+  for (const key of Object.keys(patch) as (keyof UserProfile)[]) {
+    const confirmsExisting = String(base[key] ?? "").toLowerCase() === String(patch[key]).trim().toLowerCase();
+    if (merged[key] !== undefined && (merged[key] !== base[key] || confirmsExisting)) docSources[key] = docType;
+  }
+  const uploadedDocs = DOC_TYPES.includes(docType) && !base.uploadedDocs?.includes(docType)
+    ? [...(base.uploadedDocs ?? []), docType]
+    : base.uploadedDocs;
+  return { ...merged, docSources, uploadedDocs };
 }
 
 // ─── Tool definitions (Claude tool-use schema) ───────────────────────────────
@@ -150,6 +170,18 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "extract_document",
+    description:
+      "Read the document photo the citizen attached this turn (Aadhaar, ration card, income certificate, bank passbook, land record, caste certificate) and pull out profile fields. Only works when the context block says attachment: yes. The fields are shown to the citizen on a review card to confirm — do NOT save them yourself with update_profile. Afterwards briefly tell them what was found and ask them to check and press Save.",
+    input_schema: {
+      type: "object",
+      properties: {
+        doc_type_hint: { type: "string", enum: DOC_TYPES, description: "What the citizen said the document is, if they said" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
     name: "get_application_status",
     description:
       "Look up the status, timeline and pending follow-ups of the citizen's submitted applications. Pass a reference_id to look up one application, or omit to list all.",
@@ -168,6 +200,28 @@ export interface ToolContext {
   applications: TrackedApplication[];
   artifacts: AgentArtifacts;
   traces: ToolTrace[];
+  attachment?: ImageAttachment; // document photo sent with this turn (never stored)
+}
+
+/** Like executeTool, plus tools that need network calls (document reading). */
+export async function executeToolAsync(name: string, input: Record<string, unknown>, ctx: ToolContext): Promise<unknown> {
+  if (name !== "extract_document") return executeTool(name, input, ctx);
+  if (!ctx.attachment) return { error: "No document photo attached. Ask the citizen to tap the camera button and upload one." };
+  const hint = DOC_TYPES.includes(input.doc_type_hint as DocType) ? (input.doc_type_hint as DocType) : undefined;
+  const doc = await extractDocument(ctx.attachment, hint);
+  ctx.attachment = undefined; // one extraction per upload
+  ctx.artifacts.extraction = doc;
+  const n = Object.keys(doc.fields).length;
+  ctx.traces.push({ name, input, summary: `${doc.docType}: ${n} field(s)` });
+  return {
+    doc_type: doc.docType,
+    fields_found: doc.fields,
+    warnings: doc.warnings,
+    status: "awaiting_user_confirmation",
+    note: n
+      ? "Shown to the citizen on a review card. Nothing is saved until they press Save."
+      : "Nothing legible was found. Ask for a clearer, well-lit photo, or to type the details.",
+  };
 }
 
 export function executeTool(name: string, input: Record<string, unknown>, ctx: ToolContext): unknown {
