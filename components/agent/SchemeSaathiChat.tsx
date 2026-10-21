@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { useLang } from "@/contexts/LanguageContext";
 import { useUserData } from "@/contexts/UserDataContext";
 import { ui } from "@/lib/agent/ui";
-import { hasVoiceFor, speak, stopSpeaking, useSpeechRecognition } from "@/lib/voice";
+import { speak, stopSpeaking, useSpeechRecognition, useVoiceSource } from "@/lib/voice";
 import type { AgentArtifacts, AgentResponse, ToolTrace, TrackedApplication } from "@/lib/agent/types";
 import DraftReviewCard from "./DraftReviewCard";
 
@@ -44,6 +44,7 @@ export default function SchemeSaathiChat({ className }: { className?: string }) 
   const [dismissedDrafts, setDismissedDrafts] = useState<Set<string>>(new Set());
 
   const stt = useSpeechRecognition(lang);
+  const voice = useVoiceSource(lang);
   const agentState = useRef<unknown>(undefined);
   const listRef = useRef<HTMLDivElement>(null);
   // Refs so async voice callbacks always see the latest values.
@@ -205,6 +206,7 @@ export default function SchemeSaathiChat({ className }: { className?: string }) 
   };
 
   const status = stt.listening ? ui(lang, "listening") : busy ? ui(lang, "thinking") : speaking ? ui(lang, "speaking") : null;
+  const voiceLabel = voice.source === "server" ? `${voice.serverLabel ?? "Cloud"} voice` : voice.source === "device" ? "Device voice" : null;
   const latestDraftId = [...messages].reverse().find(m => m.artifacts?.draft)?.artifacts?.draft?.draftId;
 
   return (
@@ -218,6 +220,7 @@ export default function SchemeSaathiChat({ className }: { className?: string }) 
           <p className="text-sm font-semibold text-white">{ui(lang, "saathiTitle")}</p>
           <p className="text-[11px] text-slate-400 truncate">
             {status ?? (engine === "claude" ? "Claude AI · tool calling" : engine === "offline" ? "Offline agent · tool calling" : "…")}
+            {voiceLabel && <span className="text-slate-500" title="Voice source"> · {voiceLabel}</span>}
           </p>
         </div>
         <button
@@ -245,7 +248,7 @@ export default function SchemeSaathiChat({ className }: { className?: string }) 
         <Radio size={14} className={voiceMode ? "animate-pulse" : ""} />
         {ui(lang, "voiceMode")} {voiceMode ? "● ON" : ""}
       </button>
-      {speakReplies && engine && !hasVoiceFor(lang) && lang !== "en" && (
+      {speakReplies && engine && voice.source === "default" && lang !== "en" && (
         <p className="mx-3 mt-1 text-[10px] text-amber-400/80">
           No {lang}-IN voice installed on this device — replies will use the browser default voice. (Chrome/Edge include Hindi; install language voices in OS settings for others.)
         </p>
