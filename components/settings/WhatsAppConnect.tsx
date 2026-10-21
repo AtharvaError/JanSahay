@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle, MessageCircle, Bell, Zap, Globe } from "lucide-react";
 import toast from "react-hot-toast";
 import { useLang } from "@/contexts/LanguageContext";
+import { useUserData } from "@/contexts/UserDataContext";
 
 type WaState = "idle" | "otp-sent" | "connected";
 
@@ -17,22 +18,31 @@ const features = [
 
 export default function WhatsAppConnect() {
   const { t, lang } = useLang();
+  const { account, refreshAccount } = useUserData();
   const [waState, setWaState] = useState<WaState>("idle");
   const [mobile, setMobile] = useState("");
   const [otp, setOtp] = useState("");
+  const [demoOtp, setDemoOtp] = useState<string | null>(null);
+  const [optIn, setOptIn] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Already verified in an earlier visit (session cookie) → show the connected state.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mirrors the server session
+    if (account) setWaState("connected");
+  }, [account]);
 
   const sendOtp = async () => {
     if (mobile.length < 10) { toast.error("Enter a valid 10-digit mobile number"); return; }
     setLoading(true);
-    // Call API
-    await fetch("/api/whatsapp/send-otp", {
+    const json = await fetch("/api/whatsapp/send-otp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ mobile, lang }),
-    }).catch(() => {});
-    await new Promise(r => setTimeout(r, 900));
+    }).then(r => r.json()).catch(() => null);
     setLoading(false);
+    if (!json?.success) { toast.error(json?.error ?? "Could not send OTP"); return; }
+    setDemoOtp(json.debug_otp ?? null);
     setWaState("otp-sent");
     toast("OTP sent to your WhatsApp number", { icon: "💬" });
   };
@@ -40,15 +50,32 @@ export default function WhatsAppConnect() {
   const verify = async () => {
     if (otp.length < 4) { toast.error("Enter the OTP"); return; }
     setLoading(true);
-    const res = await fetch("/api/whatsapp/verify-otp", {
+    const json = await fetch("/api/whatsapp/verify-otp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mobile, otp }),
-    }).catch(() => null);
-    await new Promise(r => setTimeout(r, 800));
+      body: JSON.stringify({ mobile, otp, optIn, lang }),
+    }).then(r => r.json()).catch(() => null);
     setLoading(false);
+    if (!json?.success) { toast.error(json?.error ?? "Verification failed"); return; }
+    await refreshAccount(); // starts syncing this device's applications to the server
     setWaState("connected");
     toast.success(t("whatsappConnected"));
+  };
+
+  const disconnect = async () => {
+    await fetch("/api/whatsapp/disconnect", { method: "POST" }).catch(() => null);
+    await refreshAccount();
+    setWaState("idle"); setOtp(""); setMobile(""); setOptIn(false);
+  };
+
+  const changeOptIn = async (next: boolean) => {
+    const json = await fetch("/api/whatsapp/session", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ optIn: next }),
+    }).then(r => r.json()).catch(() => null);
+    if (!json?.success) { toast.error(json?.error ?? "Could not update"); return; }
+    await refreshAccount();
   };
 
   return (
@@ -110,7 +137,7 @@ export default function WhatsAppConnect() {
             <div className="p-4 bg-[#25D366]/10 border border-[#25D366]/25 rounded-xl">
               <p className="text-sm text-white">{t("otpSent")}</p>
               <p className="text-xs text-slate-400 mt-1">+91 {mobile.slice(0,3)}XXXX{mobile.slice(-3)}</p>
-              <p className="text-xs text-slate-500 mt-1">Demo OTP: <strong className="text-white">123456</strong></p>
+              {demoOtp && <p className="text-xs text-slate-500 mt-1">Demo OTP: <strong className="text-white">{demoOtp}</strong></p>}
             </div>
             <div className="space-y-1.5">
               <label className="block text-xs font-medium text-slate-300">{t("enterOTP")}</label>
@@ -121,6 +148,13 @@ export default function WhatsAppConnect() {
                 className="w-full px-4 py-3 rounded-xl bg-surface-2 border border-navy-light/40 focus:border-[#25D366]/50 text-white text-xl text-center tracking-[0.5em] font-mono outline-none transition-colors"
               />
             </div>
+            <label className="flex items-start gap-2.5 p-3 rounded-xl glass border border-navy-light/30 cursor-pointer">
+              <input type="checkbox" checked={optIn} onChange={e => setOptIn(e.target.checked)}
+                className="mt-0.5 w-4 h-4 accent-[#25D366]" />
+              <span className="text-xs text-slate-300 leading-snug">
+                Send me follow-up reminders for my applications on WhatsApp, in my language. I can turn this off any time.
+              </span>
+            </label>
             <div className="flex gap-3">
               <button onClick={() => setWaState("idle")}
                 className="px-4 py-2.5 rounded-xl glass border border-navy-light/40 text-slate-300 text-sm hover:border-white/20 transition-all">
@@ -145,22 +179,25 @@ export default function WhatsAppConnect() {
               <CheckCircle size={22} className="text-[#25D366] flex-shrink-0" />
               <div>
                 <p className="font-semibold text-white">{t("whatsappConnected")}</p>
-                <p className="text-sm text-slate-400 mt-0.5">+91 {mobile} is now connected for scheme updates</p>
+                <p className="text-sm text-slate-400 mt-0.5">{account?.mobile ?? `+91 ${mobile}`} is verified</p>
               </div>
             </div>
-            <div className="space-y-2 text-sm">
-              {[
-                "You'll receive deadline reminders 7 days before expiry",
-                "Application status changes will be sent instantly",
-                `Messages will arrive in ${lang === "hi" ? "Hindi" : lang === "ta" ? "Tamil" : "your chosen language"}`,
-              ].map(item => (
-                <div key={item} className="flex items-start gap-2 text-slate-300">
-                  <CheckCircle size={13} className="text-[#25D366] flex-shrink-0 mt-0.5" />
-                  <span className="text-xs">{item}</span>
-                </div>
-              ))}
-            </div>
-            <button onClick={() => { setWaState("idle"); setOtp(""); setMobile(""); }}
+            {account?.serverSync ? (
+              <label className="flex items-start gap-2.5 p-3 rounded-xl glass border border-navy-light/30 cursor-pointer">
+                <input type="checkbox" checked={account.optIn} onChange={e => changeOptIn(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 accent-[#25D366]" />
+                <span className="text-xs text-slate-300 leading-snug">
+                  {account.optIn
+                    ? "WhatsApp reminders are on. Your applications are saved securely and follow-ups will arrive in your language."
+                    : "WhatsApp reminders are off. Tick to receive follow-up reminders in your language."}
+                </span>
+              </label>
+            ) : (
+              <p className="text-xs text-slate-400">
+                Your data stays on this device only. WhatsApp reminders need the server database (see README).
+              </p>
+            )}
+            <button onClick={disconnect}
               className="text-xs text-slate-400 hover:text-white transition-colors">
               Disconnect WhatsApp
             </button>

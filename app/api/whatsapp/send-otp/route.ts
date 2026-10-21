@@ -1,33 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
-import { randomInt } from "crypto";
+import { issueOtp } from "@/lib/server/otp.server";
+import { getProvider } from "@/lib/server/notify.server";
+import { normaliseMobile } from "@/lib/server/session.server";
+import { asLang } from "@/lib/server/store.server";
+import { MSG, fill } from "@/lib/agent/i18n";
 
-// In-memory OTP store — use Redis in production
-const otpStore = new Map<string, { otp: string; expiresAt: number }>();
-
+/**
+ * Send a WhatsApp verification code. With a live provider (NOTIFY_PROVIDER) the code is random
+ * and only delivered over WhatsApp; with the default console dry run nothing can reach the phone,
+ * so the code is the fixed demo code 123456 and is returned in the response.
+ */
 export async function POST(req: NextRequest) {
   try {
-    const { mobile, lang } = await req.json() as { mobile: string; lang?: string };
-
-    if (!mobile || mobile.length < 10) {
-      return NextResponse.json({ success: false, error: "Valid mobile number required" }, { status: 400 });
+    const body = await req.json() as { mobile?: string; lang?: string };
+    const mobile = normaliseMobile(body.mobile);
+    if (!mobile) {
+      return NextResponse.json({ success: false, error: "Valid 10-digit mobile number required" }, { status: 400 });
     }
 
-    // Generate 6-digit OTP
-    const otp = "123456"; // Fixed for demo; use randomInt(100000, 999999).toString() in production
-    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
-    otpStore.set(mobile, { otp, expiresAt });
-
-    // In production: call WhatsApp Business API (Meta) or Twilio/MSG91
-    // Example: POST https://graph.facebook.com/v18.0/{phone_id}/messages
-    // with template: { to: "+91" + mobile, type: "template", template: { name: "otp_message", language: { code: lang || "en" } } }
-
-    console.log(`[WhatsApp OTP] Sent OTP ${otp} to +91${mobile} in lang: ${lang ?? "en"}`);
+    const lang = asLang(body.lang);
+    const provider = getProvider();
+    const code = await issueOtp(mobile, !provider.live);
+    const sent = await provider.send({ to: mobile, lang, kind: "otp", text: fill(MSG.otpMessage[lang], { code }), vars: [code] });
+    if (!sent.ok) {
+      console.error(`[whatsapp] OTP send via ${provider.name} failed: ${sent.error}`);
+      return NextResponse.json({ success: false, error: "Could not send the code on WhatsApp" }, { status: 502 });
+    }
 
     return NextResponse.json({
       success: true,
       message: "OTP sent to WhatsApp",
-      // Only expose in dev for demo purposes:
-      ...(process.env.NODE_ENV === "development" && { debug_otp: otp }),
+      ...(!provider.live && { debug_otp: code }),
     });
   } catch {
     return NextResponse.json({ success: false, error: "Failed to send OTP" }, { status: 500 });

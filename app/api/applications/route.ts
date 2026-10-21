@@ -4,6 +4,9 @@ import { verifyDraft } from "@/lib/agent/tools.server";
 import type { ApplicationDraft, DraftField, TrackedApplication } from "@/lib/agent/types";
 import { MSG } from "@/lib/agent/i18n";
 import type { LangCode } from "@/lib/translations";
+import { getDb } from "@/lib/server/db.server";
+import { getSessionMobile } from "@/lib/server/session.server";
+import { saveApplication, upsertCitizen } from "@/lib/server/store.server";
 
 /**
  * Submit an application. This is the ONLY way an application gets submitted, and it
@@ -61,5 +64,22 @@ export async function POST(req: NextRequest) {
       { id: `FU-${randomUUID().slice(0, 6)}`, title: MSG.fuCheckDbt[lang], dueDate: new Date(+now + 30 * day).toISOString(), done: false },
     ],
   };
-  return NextResponse.json({ success: true, data: app });
+
+  // Signed-in (WhatsApp-verified) citizens also get the application and its follow-ups stored
+  // server-side so reminders can reach them. Device-only users keep it in localStorage.
+  let stored = false;
+  const mobile = await getSessionMobile();
+  if (mobile) {
+    try {
+      const db = await getDb();
+      if (db) {
+        await upsertCitizen(db, mobile, { lang });
+        await saveApplication(db, mobile, app);
+        stored = true;
+      }
+    } catch (e) {
+      console.error("[applications] could not persist", e);
+    }
+  }
+  return NextResponse.json({ success: true, data: app, stored });
 }

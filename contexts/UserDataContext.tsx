@@ -1,9 +1,18 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { FollowUp, TrackedApplication, UserProfile } from "@/lib/agent/types";
+import { useLang } from "@/contexts/LanguageContext";
 
-// Citizen profile, submitted applications and reminders — kept on the user's own device.
+// WhatsApp-verified sign-in, as reported by /api/whatsapp/session.
+export interface Account {
+  mobile: string;      // masked, e.g. "+91 98XXXXXX10"
+  serverSync: boolean; // the server has a database, so data is synced and reminders can be sent
+  optIn: boolean;      // citizen consented to WhatsApp reminders
+}
+
+// Citizen profile, submitted applications and reminders — kept on the user's own device,
+// and mirrored to the server once they verify their mobile on WhatsApp (if a database is configured).
 interface UserDataContextType {
   profile: UserProfile;
   setProfile: (p: UserProfile) => void;
@@ -14,16 +23,27 @@ interface UserDataContextType {
   addFollowUps: (f: FollowUp[]) => void;
   toggleFollowUp: (id: string) => void;
   resetAll: () => void;
+  account: Account | null;
+  refreshAccount: () => Promise<void>;
 }
 
 const KEY = "jansahay-userdata-v1";
 const UserDataContext = createContext<UserDataContextType | null>(null);
 
+// Union by key, keeping the device's copy when both sides have an item.
+function union<T>(local: T[], server: T[], key: (t: T) => string): T[] {
+  const seen = new Set(local.map(key));
+  return [...local, ...server.filter(s => !seen.has(key(s)))];
+}
+
 export function UserDataProvider({ children }: { children: ReactNode }) {
+  const { lang } = useLang();
   const [profile, setProfile] = useState<UserProfile>({});
   const [applications, setApplications] = useState<TrackedApplication[]>([]);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [account, setAccount] = useState<Account | null>(null);
+  const mergedFor = useRef<string | null>(null);
 
   // Hydrate from localStorage after mount (reading it during render would mismatch the server HTML).
   useEffect(() => {
@@ -45,6 +65,42 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(KEY, JSON.stringify({ profile, applications, followUps }));
     } catch {}
   }, [profile, applications, followUps, loaded]);
+
+  const refreshAccount = useCallback(async () => {
+    try {
+      const json = await (await fetch("/api/whatsapp/session")).json();
+      setAccount(json.data ?? null);
+    } catch {
+      setAccount(null); // offline — keep working from localStorage
+    }
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetches the session once on mount
+    refreshAccount();
+  }, [refreshAccount]);
+
+  // Mirror to the server. The first sync after sign-in also pulls down anything stored from
+  // another device; later syncs just push (debounced) so `done` ticks reach the reminder sender.
+  useEffect(() => {
+    if (!loaded || !account?.serverSync) return;
+    const first = mergedFor.current !== account.mobile;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/user/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ profile, applications, followUps, lang }),
+        });
+        const json = await res.json();
+        if (!first || !json.success || !json.data) return;
+        mergedFor.current = account.mobile;
+        setApplications(prev => union(prev, json.data.applications as TrackedApplication[], a => a.referenceId));
+        setFollowUps(prev => union(prev, json.data.followUps as FollowUp[], f => f.id));
+      } catch {}
+    }, first ? 0 : 1500);
+    return () => clearTimeout(timer);
+  }, [loaded, account, profile, applications, followUps, lang]);
 
   const addApplication = useCallback((a: TrackedApplication) => setApplications(prev => [a, ...prev]), []);
   const replaceApplications = useCallback((a: TrackedApplication[]) => setApplications(a), []);
@@ -69,7 +125,7 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <UserDataContext.Provider value={{ profile, setProfile, applications, addApplication, replaceApplications, followUps, addFollowUps, toggleFollowUp, resetAll }}>
+    <UserDataContext.Provider value={{ profile, setProfile, applications, addApplication, replaceApplications, followUps, addFollowUps, toggleFollowUp, resetAll, account, refreshAccount }}>
       {children}
     </UserDataContext.Provider>
   );
