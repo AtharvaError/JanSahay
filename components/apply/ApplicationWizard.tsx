@@ -1,24 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  CheckCircle, FileText, ExternalLink,
-  ChevronRight, ChevronLeft, AlertCircle, Sparkles,
-  BookOpen, MousePointerClick, ThumbsUp, Copy,
-  Upload, Clock, ShieldCheck, XCircle, ArrowRight
+  CheckCircle, ExternalLink,
+  ChevronRight, ChevronLeft, Sparkles,
+  BookOpen, MousePointerClick, ThumbsUp,
+  Clock, ShieldCheck, XCircle, ArrowRight
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useLang } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
 import type { Scheme } from "@/lib/data/schemes";
-import { documents as allDocs } from "@/lib/data/schemes";
+import { useUserData } from "@/contexts/UserDataContext";
+import { buildChecklist } from "@/lib/agent/documents";
+import type { ApplicationDraft, TrackedApplication } from "@/lib/agent/types";
+import DraftReviewCard from "@/components/agent/DraftReviewCard";
 
 // ─── Wizard step definitions ─────────────────────────────────────────────────
 const STEP_KEYS = [
   { id: "documents", icon: ShieldCheck,       labelKey: "docCheck"      },
-  { id: "guide",     icon: BookOpen,           labelKey: "formFieldGuide"},
+  { id: "review",    icon: BookOpen,           labelKey: "reviewSubmit"  },
   { id: "portal",    icon: MousePointerClick,  labelKey: "applyOnPortal" },
   { id: "done",      icon: ThumbsUp,           labelKey: "allDone"       },
 ] as const;
@@ -116,233 +119,62 @@ const DEFAULT_PORTAL_STEPS = {
   ],
 };
 
-// ─── Step 0: Document Verification ───────────────────────────────────────────
-type DocStatus = "verified" | "pending" | "needs-action" | "missing";
-
+// ─── Step 0: Personalised document checklist ─────────────────────────────────
 function StepDocuments({ scheme, onNext }: { scheme: Scheme; onNext: () => void }) {
   const { t } = useLang();
-  // Match scheme's required doc strings against uploaded documents in the app
-  const docStatuses = scheme.documents.map((required) => {
-    const keywords = required.toLowerCase().split(/[\s/,]+/).filter((w) => w.length > 3);
-    const match = allDocs.find((uploaded) => {
-      const name = uploaded.name.toLowerCase();
-      return keywords.some((kw) => name.includes(kw));
-    });
-    return {
-      required,
-      status: (match ? match.status : "missing") as DocStatus,
-      doc: match ?? null,
-    };
-  });
+  const { profile } = useUserData();
+  const checklist = buildChecklist(scheme.id, profile);
+  const items = checklist?.items ?? [];
+  const [have, setHave] = useState<Set<string>>(new Set());
+  const missing = items.filter(i => i.required && !have.has(i.document)).length;
 
-  const verified = docStatuses.filter((d) => d.status === "verified").length;
-  const missing  = docStatuses.filter((d) => d.status === "missing").length;
-  const pending  = docStatuses.filter((d) => d.status === "pending" || d.status === "needs-action").length;
+  const toggle = (doc: string) =>
+    setHave(prev => { const n = new Set(prev); if (n.has(doc)) n.delete(doc); else n.add(doc); return n; });
 
   return (
     <div className="space-y-4">
-      {/* Summary banner */}
-      <div className={cn(
-        "p-4 rounded-2xl border",
-        missing > 0
-          ? "bg-red-500/10 border-red-500/25"
-          : "bg-emerald-500/10 border-emerald-500/25"
-      )}>
-        <p className="text-sm font-semibold text-white mb-1">
-          {missing > 0 ? `⚠️ ${t("missingDocumentsDetected")}` : `✅ ${t("docsVerified")}`}
+      <div className="p-4 rounded-2xl bg-surface-2 border border-navy-light/30">
+        <p className="text-sm font-semibold text-white mb-1">📋 {t("requiredDocs")} — {scheme.title}</p>
+        <p className="text-xs text-slate-400">
+          Personalised for your profile. Tick each document you already have; 📲 ones can be fetched from DigiLocker.
         </p>
-        <p className="text-xs text-slate-400 mb-3">
-          {t("docStatusCheck")} — <strong className="text-white">{scheme.title}</strong>
-        </p>
-        <div className="flex items-center gap-4 text-xs">
-          <span className="flex items-center gap-1.5 text-emerald-400">
-            <CheckCircle size={12} /> {verified} Verified
-          </span>
-          {pending > 0 && (
-            <span className="flex items-center gap-1.5 text-yellow-400">
-              <Clock size={12} /> {pending} Under Review
-            </span>
-          )}
-          {missing > 0 && (
-            <span className="flex items-center gap-1.5 text-red-400">
-              <XCircle size={12} /> {missing} Missing
-            </span>
-          )}
+        <div className="flex items-center gap-4 mt-3 text-xs">
+          <span className="flex items-center gap-1.5 text-emerald-400"><CheckCircle size={12} /> {have.size} ready</span>
+          {missing > 0 && <span className="flex items-center gap-1.5 text-red-400"><XCircle size={12} /> {missing} to collect</span>}
         </div>
       </div>
 
-      {/* Per-document status rows */}
       <div className="space-y-2.5">
-        {docStatuses.map(({ required, status, doc }, i) => (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.06 }}
-            className={cn(
-              "flex items-center gap-3 p-3.5 rounded-xl border",
-              status === "verified"
-                ? "bg-emerald-500/10 border-emerald-500/25"
-                : status === "pending"
-                ? "bg-yellow-500/10 border-yellow-500/20"
-                : status === "needs-action"
-                ? "bg-orange-500/10 border-orange-500/20"
-                : "bg-red-500/10 border-red-500/20"
-            )}
-          >
-            {/* Status icon */}
-            <div className={cn(
-              "w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0",
-              status === "verified"     ? "bg-emerald-500/20 text-emerald-400"
-              : status === "pending"   ? "bg-yellow-500/20 text-yellow-400"
-              : status === "needs-action" ? "bg-orange-500/20 text-orange-400"
-              : "bg-red-500/20 text-red-400"
-            )}>
-              {status === "verified"      ? <CheckCircle size={18} />
-               : status === "pending"    ? <Clock size={18} />
-               : status === "needs-action" ? <AlertCircle size={18} />
-               : <XCircle size={18} />}
-            </div>
-
-            {/* Info */}
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-white">{required}</p>
-              {doc ? (
-                <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                  {doc.name} &middot; {doc.uploadedAt}
-                </p>
-              ) : (
-                <p className="text-[11px] text-red-400 mt-0.5">{t("notUploadedMsg")}</p>
+        {items.map((it, i) => {
+          const ok = have.has(it.document);
+          return (
+            <motion.label
+              key={it.document}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05 }}
+              className={cn(
+                "flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-colors",
+                ok ? "bg-emerald-500/10 border-emerald-500/25" : "bg-surface-2 border-navy-light/30 hover:border-blue-500/30",
               )}
-            </div>
-
-            {/* Badge / action */}
-            {status === "verified" && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 flex-shrink-0">
-                {t("verified")} ✓
-              </span>
-            )}
-            {status === "pending" && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-300 flex-shrink-0">
-                {t("underReview")}
-              </span>
-            )}
-            {status === "needs-action" && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 flex-shrink-0">
-                {t("actionNeeded")}
-              </span>
-            )}
-            {status === "missing" && (
-              <Link
-                href="/documents"
-                className="flex-shrink-0 flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors"
-              >
-                <Upload size={11} /> Upload
-              </Link>
-            )}
-          </motion.div>
-        ))}
+            >
+              <input type="checkbox" checked={ok} onChange={() => toggle(it.document)} className="mt-1 h-4 w-4 accent-emerald-500" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-white">
+                  {it.document} {it.inDigiLocker && <span title="Available in DigiLocker">📲</span>}
+                  {!it.required && <span className="ml-1 text-[10px] text-slate-500">(if applicable)</span>}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">{it.reason}</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">📍 {it.whereToGet}</p>
+              </div>
+            </motion.label>
+          );
+        })}
       </div>
 
-      {/* DigiLocker tip */}
       <div className="flex items-start gap-2 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-300">
         <span className="text-base mt-0.5">💡</span>
-        <span>
-          Connect <strong>DigiLocker</strong> in Settings to auto-fetch Aadhaar, PAN & government certificates — no manual uploads needed.
-        </span>
-      </div>
-
-      {/* CTA */}
-      {missing > 0 ? (
-        <div className="space-y-2">
-          <Link
-            href="/documents"
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm transition-all shadow-lg shadow-blue-600/25"
-          >
-            <Upload size={16} /> {t("goUploadDocs")}
-          </Link>
-          <button
-            onClick={onNext}
-            className="w-full text-xs text-slate-500 hover:text-slate-300 py-2 transition-colors text-center"
-          >
-            {t("skipProceedAnyway")} →
-          </button>
-        </div>
-      ) : (
-        <motion.button
-          onClick={onNext}
-          whileHover={{ scale: 1.01 }}
-          whileTap={{ scale: 0.98 }}
-          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm transition-all shadow-lg shadow-blue-600/25"
-        >
-          {t("docsReadyContinue")}
-          <ChevronRight size={16} />
-        </motion.button>
-      )}
-    </div>
-  );
-}
-
-// ─── Step 1: Form Field Guide ─────────────────────────────────────────────────
-function StepGuide({ scheme, onNext }: { scheme: Scheme; onNext: () => void }) {
-  const { t } = useLang();
-  const [copied, setCopied] = useState<number | null>(null);
-
-  const copy = (text: string, i: number) => {
-    navigator.clipboard.writeText(text).catch(() => {});
-    setCopied(i);
-    toast.success("Copied to clipboard!");
-    setTimeout(() => setCopied(null), 2000);
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 to-orange-500/10 border border-amber-500/25">
-        <p className="text-sm font-semibold text-white mb-1">
-          📋 What you&apos;ll see on the {scheme.title} portal
-        </p>
-        <p className="text-xs text-slate-400">
-          Each field below matches a field on the real government form. Follow the hints to fill it correctly.
-        </p>
-      </div>
-
-      <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1 scrollbar-hide">
-        {scheme.formFields.map((f, i) => (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0, x: -8 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: i * 0.05 }}
-            className="p-4 rounded-xl bg-surface-2 border border-navy-light/30 hover:border-blue-500/25 transition-colors"
-          >
-            <div className="flex items-start justify-between gap-3 mb-2">
-              <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-blue-600/30 text-blue-400 text-[10px] font-bold flex items-center justify-center flex-shrink-0">
-                  {i + 1}
-                </span>
-                <p className="text-sm font-semibold text-white">{f.field}</p>
-              </div>
-              {f.source && (
-                <span className="text-[10px] text-blue-400 bg-blue-500/15 border border-blue-500/25 px-2 py-0.5 rounded-full flex-shrink-0">
-                  From: {f.source}
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-slate-400 mb-2 leading-relaxed pl-7">{f.hint}</p>
-            <div className="flex items-center gap-2 pl-7">
-              <span className="text-[11px] font-mono text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg flex-1">
-                e.g. {f.example}
-              </span>
-              <button
-                onClick={() => copy(f.example, i)}
-                className="flex items-center gap-1 px-2 py-1 rounded-lg bg-surface-2 hover:bg-navy-light/50 text-slate-400 hover:text-white border border-navy-light/40 transition-colors text-[10px]"
-              >
-                {copied === i ? <CheckCircle size={11} className="text-emerald-400" /> : <Copy size={11} />}
-                {copied === i ? "Copied" : "Copy"}
-              </button>
-            </div>
-          </motion.div>
-        ))}
+        <span>Connect <strong>DigiLocker</strong> in Settings to auto-fetch Aadhaar, income & caste certificates.</span>
       </div>
 
       <motion.button
@@ -351,11 +183,50 @@ function StepGuide({ scheme, onNext }: { scheme: Scheme; onNext: () => void }) {
         whileTap={{ scale: 0.98 }}
         className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm transition-all shadow-lg shadow-blue-600/25"
       >
-        {t("readyTakeToPortal")} <ChevronRight size={16} />
+        {missing > 0 ? `${t("skipProceedAnyway")}` : t("docsReadyContinue")} <ChevronRight size={16} />
       </motion.button>
     </div>
   );
 }
+
+// ─── Step 1: Pre-filled form + human confirmation ─────────────────────────────
+function StepPrefill({ scheme, onSubmitted }: { scheme: Scheme; onSubmitted: (a: TrackedApplication) => void }) {
+  const { profile } = useUserData();
+  const [draft, setDraft] = useState<ApplicationDraft | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/tools/prefill", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ schemeId: scheme.id, profile }),
+    })
+      .then(r => r.json())
+      .then(j => {
+        if (cancelled) return;
+        if (j.success) setDraft(j.data);
+        else setError("Could not prepare the form");
+      })
+      .catch(() => !cancelled && setError("Network error"));
+    return () => { cancelled = true; };
+  }, [scheme.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (error) return <p className="text-sm text-red-400">{error}</p>;
+  if (!draft) return <p className="text-sm text-slate-400 flex items-center gap-2"><Clock size={14} className="animate-spin" /> Pre-filling your form…</p>;
+
+  return (
+    <div className="space-y-3">
+      {Object.keys(profile).length === 0 && (
+        <p className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
+          Tip: talk to <Link href="/eligibility" className="underline">Scheme Saathi</Link> first and most of these fields will be filled for you automatically.
+        </p>
+      )}
+      <DraftReviewCard draft={draft} onSubmitted={onSubmitted} />
+    </div>
+  );
+}
+
 
 // ─── Step 2: Portal with Detailed Guidance ────────────────────────────────────
 function StepPortal({ scheme, onNext }: { scheme: Scheme; onNext: () => void }) {
@@ -461,7 +332,7 @@ function StepPortal({ scheme, onNext }: { scheme: Scheme; onNext: () => void }) 
 }
 
 // ─── Step 3: Done ─────────────────────────────────────────────────────────────
-function StepDone({ scheme }: { scheme: Scheme }) {
+function StepDone({ scheme, app }: { scheme: Scheme; app: TrackedApplication | null }) {
   const { t } = useLang();
   return (
     <motion.div
@@ -481,10 +352,21 @@ function StepDone({ scheme }: { scheme: Scheme }) {
       <div>
         <h3 className="text-2xl font-bold text-white">{t("wellDone")} 🎉</h3>
         <p className="text-slate-400 mt-2 text-sm max-w-xs mx-auto">
-          You've submitted your application on the official{" "}
-          <span className="text-white font-medium">{scheme.title}</span> portal.
+          Your confirmed <span className="text-white font-medium">{scheme.title}</span> application is being tracked.
         </p>
+        {app && (
+          <p className="mt-3 inline-block font-mono text-sm px-3 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
+            {app.referenceId}
+          </p>
+        )}
       </div>
+
+      <Link
+        href="/applications"
+        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm"
+      >
+        Track status & follow-ups <ArrowRight size={16} />
+      </Link>
 
       <div className="w-full p-4 bg-surface-2 border border-navy-light/30 rounded-xl text-left space-y-3">
         <p className="text-xs font-semibold text-slate-300 uppercase tracking-wide">{t("nextSteps")}</p>
@@ -515,6 +397,7 @@ function StepDone({ scheme }: { scheme: Scheme }) {
 export default function ApplicationWizard({ scheme }: { scheme: Scheme }) {
   const { t } = useLang();
   const [step, setStep] = useState(0);
+  const [app, setApp] = useState<TrackedApplication | null>(null);
   const next = () => setStep((s) => Math.min(s + 1, STEP_KEYS.length - 1));
   const prev = () => setStep((s) => Math.max(s - 1, 0));
 
@@ -592,14 +475,14 @@ export default function ApplicationWizard({ scheme }: { scheme: Scheme }) {
           transition={{ duration: 0.25 }}
         >
           {step === 0 && <StepDocuments scheme={scheme} onNext={next} />}
-          {step === 1 && <StepGuide scheme={scheme} onNext={next} />}
+          {step === 1 && <StepPrefill scheme={scheme} onSubmitted={a => { setApp(a); next(); }} />}
           {step === 2 && <StepPortal scheme={scheme} onNext={next} />}
-          {step === 3 && <StepDone scheme={scheme} />}
+          {step === 3 && <StepDone scheme={scheme} app={app} />}
         </motion.div>
       </AnimatePresence>
 
       {/* Back button */}
-      {step > 0 && step < 3 && (
+      {step === 1 && (
         <button
           onClick={prev}
           className="mt-5 flex items-center gap-1.5 text-sm text-slate-400 hover:text-white transition-colors"

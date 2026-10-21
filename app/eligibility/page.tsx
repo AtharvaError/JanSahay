@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import { MessageSquare, ListChecks } from "lucide-react";
 import { useState } from "react";
-import AIChatInterface from "@/components/eligibility/AIChatInterface";
+import SchemeSaathiChat from "@/components/agent/SchemeSaathiChat";
 import EligibleSchemesList from "@/components/eligibility/EligibleSchemesList";
 import LanguageToggle from "@/components/ui/LanguageToggle";
 import { cn } from "@/lib/utils";
@@ -12,7 +12,7 @@ import { useLang } from "@/contexts/LanguageContext";
 type Mode = "schemes" | "chat";
 
 export default function EligibilityPage() {
-  const [mode, setMode] = useState<Mode>("schemes");
+  const [mode, setMode] = useState<Mode>("chat");
   const { t } = useLang();
 
   const MODES = [
@@ -59,16 +59,16 @@ export default function EligibilityPage() {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
             >
-              <EligibleSchemesList />
+              <EligibleSchemesList onTalk={() => setMode("chat")} />
             </motion.div>
           ) : (
             <motion.div
               key="chat"
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              className="h-[600px]"
+              className="h-[680px]"
             >
-              <AIChatInterface />
+              <SchemeSaathiChat />
             </motion.div>
           )}
         </div>

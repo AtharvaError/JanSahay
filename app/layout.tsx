@@ -8,6 +8,7 @@ import GlobalAIGuide from "@/components/ui/GlobalAIGuide";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { SavedSchemesProvider } from "@/contexts/SavedSchemesContext";
+import { UserDataProvider } from "@/contexts/UserDataContext";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -24,6 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider>
           <LanguageProvider>
             <SavedSchemesProvider>
+            <UserDataProvider>
             <ToastProvider />
             <div className="flex h-full">
               <Sidebar />
@@ -33,6 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
             <BottomNav />
             <GlobalAIGuide />
+            </UserDataProvider>
             </SavedSchemesProvider>
           </LanguageProvider>
         </ThemeProvider>

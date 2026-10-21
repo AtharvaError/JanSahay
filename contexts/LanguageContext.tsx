@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
 import { type LangCode, type TranslationKey, t as translate } from "@/lib/translations";
 import { languages } from "@/lib/data/schemes";
 
@@ -21,7 +21,19 @@ const LanguageContext = createContext<LanguageContextType>({
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<LangCode>("en");
 
-  const setLang = useCallback((l: LangCode) => setLangState(l), []);
+  // Remember the chosen language across page loads.
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("jansahay-lang") as LangCode | null;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time sync from localStorage
+      if (saved && languages.some(l => l.code === saved)) setLangState(saved);
+    } catch {}
+  }, []);
+
+  const setLang = useCallback((l: LangCode) => {
+    setLangState(l);
+    try { localStorage.setItem("jansahay-lang", l); } catch {}
+  }, []);
   const t = useCallback((key: TranslationKey) => translate(lang, key), [lang]);
   const langLabel = languages.find(l => l.code === lang)?.label ?? "English";
 

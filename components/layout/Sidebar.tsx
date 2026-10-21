@@ -6,8 +6,7 @@ import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Home, LayoutDashboard, ClipboardCheck, FileText,
-  Bell, FolderOpen, ChevronLeft, ChevronRight, Settings
-} from "lucide-react";
+  Bell, FolderOpen, ChevronLeft, ChevronRight, Settings, ClipboardList } from "lucide-react";
 import GovSchemeLogo from "@/components/ui/GovSchemeLogo";
 import { cn } from "@/lib/utils";
 import LanguageToggle from "@/components/ui/LanguageToggle";
@@ -20,6 +19,7 @@ const navItems: { href: string; labelKey: TranslationKey; icon: React.FC<{ size?
   { href: "/",             labelKey: "home",          icon: Home },
   { href: "/dashboard",    labelKey: "dashboard",     icon: LayoutDashboard },
   { href: "/eligibility",  labelKey: "eligibility",   icon: ClipboardCheck },
+  { href: "/applications", labelKey: "myApplications", icon: ClipboardList },
   { href: "/schemes",      labelKey: "schemes",       icon: FileText },
   { href: "/notifications",labelKey: "notifications", icon: Bell },
   { href: "/documents",    labelKey: "documents",     icon: FolderOpen },

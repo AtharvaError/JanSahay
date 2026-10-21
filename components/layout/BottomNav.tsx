@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { Home, LayoutDashboard, ClipboardCheck, Bell, FolderOpen, Settings } from "lucide-react";
+import { Home, LayoutDashboard, ClipboardCheck, Bell, Settings, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLang } from "@/contexts/LanguageContext";
 import type { TranslationKey } from "@/lib/translations";
@@ -12,8 +12,8 @@ const navItems: { href: string; labelKey: TranslationKey; icon: React.FC<{ size?
   { href: "/",              labelKey: "home",          icon: Home },
   { href: "/dashboard",     labelKey: "dashboard",     icon: LayoutDashboard },
   { href: "/eligibility",   labelKey: "eligibility",   icon: ClipboardCheck },
+  { href: "/applications", labelKey: "myApplications", icon: ClipboardList },
   { href: "/notifications", labelKey: "notifications", icon: Bell },
-  { href: "/documents",     labelKey: "documents",     icon: FolderOpen },
   { href: "/settings",      labelKey: "settings",      icon: Settings },
 ];
 

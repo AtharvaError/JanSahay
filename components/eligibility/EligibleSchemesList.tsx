@@ -8,8 +8,11 @@ import {
 } from "lucide-react";
 import { schemes } from "@/lib/data/schemes";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useLang } from "@/contexts/LanguageContext";
+import { useUserData } from "@/contexts/UserDataContext";
+import { evaluateAll } from "@/lib/agent/eligibility";
+import { ui } from "@/lib/agent/ui";
 
 const categories = ["All", "Agriculture", "Health", "Housing", "Education", "Employment", "Women"];
 
@@ -22,28 +25,40 @@ const categoryColors: Record<string, string> = {
   women:       "from-pink-500/20 to-fuchsia-500/5 border-pink-500/25",
 };
 
-const matchBadge = (pct: number) => {
-  if (pct >= 85) return { label: "Excellent Match", color: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" };
-  if (pct >= 70) return { label: "Good Match", color: "bg-blue-500/20 text-blue-400 border-blue-500/30" };
-  return { label: "Partial Match", color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" };
-};
-
 const statusColors: Record<string, string> = {
   open: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
   "closing-soon": "bg-yellow-500/15 text-yellow-400 border-yellow-500/25",
   closed: "bg-red-500/15 text-red-400 border-red-500/25",
 };
 
-export default function EligibleSchemesList() {
+export default function EligibleSchemesList({ onTalk }: { onTalk?: () => void }) {
   const [cat, setCat] = useState("All");
-  const { t } = useLang();
+  const { t, lang } = useLang();
+  const { profile } = useUserData();
 
-  // Sort by match percent descending
-  const filtered = schemes
-    .filter(s => cat === "All" || s.category === cat.toLowerCase())
-    .sort((a, b) => b.matchPercent - a.matchPercent);
+  // Real eligibility from the rules engine, using the citizen's saved profile.
+  const results = useMemo(() => evaluateAll(profile), [profile]);
+  const verdictOf = new Map(results.map(r => [r.schemeId, r]));
+  const filtered = results
+    .filter(r => r.verdict === "eligible" || (r.verdict === "likely" && r.score > 0))
+    .map(r => ({ ...schemes.find(s => s.id === r.schemeId)!, matchPercent: r.score }))
+    .filter(s => cat === "All" || s.category === cat.toLowerCase());
 
   const topScheme = filtered[0];
+
+  if (Object.keys(profile).length === 0) {
+    return (
+      <div className="glass rounded-2xl border border-blue-500/25 p-8 text-center space-y-4">
+        <Sparkles size={28} className="mx-auto text-yellow-400" />
+        <p className="text-sm text-slate-300">{ui(lang, "profileEmpty")}</p>
+        {onTalk && (
+          <button onClick={onTalk} className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold">
+            {ui(lang, "talkToSaathi")} →
+          </button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -124,7 +139,10 @@ export default function EligibleSchemesList() {
       {/* Scheme list */}
       <div className="space-y-3">
         {filtered.map((s, i) => {
-          const badge = matchBadge(s.matchPercent);
+          const res = verdictOf.get(s.id);
+          const badge = res?.verdict === "eligible"
+            ? { label: ui(lang, "eligible"), color: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" }
+            : { label: `${ui(lang, "likely")}`, color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" };
           return (
             <motion.div
               key={s.id}

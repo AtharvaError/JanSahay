@@ -2,7 +2,7 @@ export type LangCode = "en" | "hi" | "bn" | "ta" | "mr" | "te" | "gu" | "kn";
 
 export type TranslationKey =
   | "home" | "dashboard" | "eligibility" | "schemes" | "notifications"
-  | "documents" | "settings" | "help" | "savedSchemes" | "profile"
+  | "documents" | "settings" | "myApplications" | "help" | "savedSchemes" | "profile"
   | "checkEligibility" | "exploreSchemes" | "applyNow" | "saveScheme"
   | "share" | "back" | "next" | "submit" | "verify" | "cancel"
   | "upload" | "connect" | "disconnect" | "sendOTP" | "verifyOTP"
@@ -43,7 +43,7 @@ export const translations: Record<LangCode, Record<TranslationKey, string>> = {
   en: {
     home: "Home", dashboard: "Dashboard", eligibility: "Eligibility",
     schemes: "Schemes", notifications: "Alerts", documents: "Documents",
-    settings: "Settings", help: "Help", savedSchemes: "Saved Schemes",
+    myApplications: "My Applications", settings: "Settings", help: "Help", savedSchemes: "Saved Schemes",
     profile: "Profile", checkEligibility: "Check Eligibility",
     exploreSchemes: "Explore Schemes", applyNow: "Apply Now",
     saveScheme: "Save Scheme", share: "Share", back: "Back", next: "Next",
@@ -111,7 +111,7 @@ export const translations: Record<LangCode, Record<TranslationKey, string>> = {
   hi: {
     home: "होम", dashboard: "डैशबोर्ड", eligibility: "पात्रता",
     schemes: "योजनाएं", notifications: "अलर्ट", documents: "दस्तावेज़",
-    settings: "सेटिंग्स", help: "सहायता", savedSchemes: "सहेजी योजनाएं",
+    myApplications: "मेरे आवेदन", settings: "सेटिंग्स", help: "सहायता", savedSchemes: "सहेजी योजनाएं",
     profile: "प्रोफ़ाइल", checkEligibility: "पात्रता जांचें",
     exploreSchemes: "योजनाएं देखें", applyNow: "अभी आवेदन करें",
     saveScheme: "योजना सहेजें", share: "साझा करें", back: "वापस",
@@ -179,7 +179,7 @@ export const translations: Record<LangCode, Record<TranslationKey, string>> = {
   bn: {
     home: "হোম", dashboard: "ড্যাশবোর্ড", eligibility: "যোগ্যতা",
     schemes: "প্রকল্প", notifications: "বিজ্ঞপ্তি", documents: "নথিপত্র",
-    settings: "সেটিংস", help: "সাহায্য", savedSchemes: "সংরক্ষিত প্রকল্প",
+    myApplications: "আমার আবেদন", settings: "সেটিংস", help: "সাহায্য", savedSchemes: "সংরক্ষিত প্রকল্প",
     profile: "প্রোফাইল", checkEligibility: "যোগ্যতা যাচাই",
     exploreSchemes: "প্রকল্প দেখুন", applyNow: "এখনই আবেদন করুন",
     saveScheme: "প্রকল্প সংরক্ষণ", share: "শেয়ার করুন", back: "পিছনে",
@@ -247,7 +247,7 @@ export const translations: Record<LangCode, Record<TranslationKey, string>> = {
   ta: {
     home: "முகப்பு", dashboard: "டாஷ்போர்டு", eligibility: "தகுதி",
     schemes: "திட்டங்கள்", notifications: "அறிவிப்புகள்", documents: "ஆவணங்கள்",
-    settings: "அமைப்புகள்", help: "உதவி", savedSchemes: "சேமித்த திட்டங்கள்",
+    myApplications: "என் விண்ணப்பங்கள்", settings: "அமைப்புகள்", help: "உதவி", savedSchemes: "சேமித்த திட்டங்கள்",
     profile: "சுயவிவரம்", checkEligibility: "தகுதி சரிபார்",
     exploreSchemes: "திட்டங்கள் காண்க", applyNow: "இப்போது விண்ணப்பிக்கவும்",
     saveScheme: "திட்டம் சேமி", share: "பகிர்", back: "பின்னால்",
@@ -316,7 +316,7 @@ export const translations: Record<LangCode, Record<TranslationKey, string>> = {
   mr: {
     home: "मुख्यपृष्ठ", dashboard: "डॅशबोर्ड", eligibility: "पात्रता",
     schemes: "योजना", notifications: "सूचना", documents: "दस्तऐवज",
-    settings: "सेटिंग्ज", help: "मदत", savedSchemes: "जतन केलेल्या योजना",
+    myApplications: "माझे अर्ज", settings: "सेटिंग्ज", help: "मदत", savedSchemes: "जतन केलेल्या योजना",
     profile: "प्रोफाइल", checkEligibility: "पात्रता तपासा",
     exploreSchemes: "योजना पाहा", applyNow: "आत्ता अर्ज करा",
     saveScheme: "योजना जतन करा", share: "शेअर करा", back: "मागे",
@@ -384,7 +384,7 @@ export const translations: Record<LangCode, Record<TranslationKey, string>> = {
   te: {
     home: "హోమ్", dashboard: "డాష్‌బోర్డ్", eligibility: "అర్హత",
     schemes: "పథకాలు", notifications: "హెచ్చరికలు", documents: "పత్రాలు",
-    settings: "సెట్టింగ్‌లు", help: "సహాయం", savedSchemes: "సేవ్ చేసిన పథకాలు",
+    myApplications: "నా దరఖాస్తులు", settings: "సెట్టింగ్‌లు", help: "సహాయం", savedSchemes: "సేవ్ చేసిన పథకాలు",
     profile: "ప్రొఫైల్", checkEligibility: "అర్హత తనిఖీ",
     exploreSchemes: "పథకాలు చూడండి", applyNow: "ఇప్పుడే దరఖాస్తు చేయండి",
     saveScheme: "పథకం సేవ్ చేయి", share: "షేర్ చేయి", back: "వెనక్కి",
@@ -452,7 +452,7 @@ export const translations: Record<LangCode, Record<TranslationKey, string>> = {
   gu: {
     home: "હોમ", dashboard: "ડૅશબૉર્ડ", eligibility: "પાત્રતા",
     schemes: "યોજનાઓ", notifications: "સૂચनाઓ", documents: "દસ્તાવેજો",
-    settings: "સેટિંગ્સ", help: "સહાય", savedSchemes: "સાચવેલ યોજнаઓ",
+    myApplications: "મારી અરજીઓ", settings: "સેટિંગ્સ", help: "સહાય", savedSchemes: "સાચવેલ યોજнаઓ",
     profile: "પ્રોફાઇल", checkEligibility: "પાત્રતા ચકासो",
     exploreSchemes: "योजнाઓ जुઓ", applyNow: "હमणàs अरajी करо",
     saveScheme: "योजनाн сберегай", share: "शेर करо", back: "पाछа",
@@ -520,7 +520,7 @@ export const translations: Record<LangCode, Record<TranslationKey, string>> = {
   kn: {
     home: "ಮನೆ", dashboard: "ಡ್ಯಾಶ್‌ಬೋರ್ಡ್", eligibility: "ಅರ್ಹತೆ",
     schemes: "ಯೋಜನೆಗಳು", notifications: "ಎಚ್ಚರಿಕೆಗಳು", documents: "ದಾಖಲೆಗಳು",
-    settings: "ಸೆಟ್ಟಿಂಗ್‌ಗಳು", help: "ಸಹಾಯ", savedSchemes: "ಉಳಿಸಿದ ಯೋಜನೆಗಳು",
+    myApplications: "ನನ್ನ ಅರ್ಜಿಗಳು", settings: "ಸೆಟ್ಟಿಂಗ್‌ಗಳು", help: "ಸಹಾಯ", savedSchemes: "ಉಳಿಸಿದ ಯೋಜನೆಗಳು",
     profile: "ಪ್ರೊಫೈಲ್", checkEligibility: "ಅರ್ಹತೆ ಪರಿಶೀಲಿಸಿ",
     exploreSchemes: "ಯೋಜನೆಗಳನ್ನು ಅನ್ವೇಷಿಸಿ", applyNow: "ಈಗ ಅರ್ಜಿ ಸಲ್ಲಿಸಿ",
     saveScheme: "ಯೋಜನೆ ಉಳಿಸಿ", share: "ಹಂಚಿಕೊಳ್ಳಿ", back: "ಹಿಂದೆ",
