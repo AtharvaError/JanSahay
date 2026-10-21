@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/server/db.server";
 import { getSessionMobile } from "@/lib/server/session.server";
 import { asLang, loadCitizenData, saveApplication, saveFollowUps, upsertCitizen } from "@/lib/server/store.server";
+import { sanitizeProfile } from "@/lib/agent/tools.server";
 import type { FollowUp, TrackedApplication, UserProfile } from "@/lib/agent/types";
 
 // Two-way sync between the device's localStorage and the server, for a WhatsApp-verified citizen.
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Invalid JSON" }, { status: 400 });
   }
 
-  await upsertCitizen(c.db, c.mobile, { profile: body.profile, lang: body.lang ? asLang(body.lang) : undefined });
+  await upsertCitizen(c.db, c.mobile, { profile: sanitizeProfile(body.profile), lang: body.lang ? asLang(body.lang) : undefined });
   for (const app of (Array.isArray(body.applications) ? body.applications : []).slice(0, 100)) {
     if (app?.referenceId && app.submittedAt && app.confirmedByUser === true) await saveApplication(c.db, c.mobile, app);
   }

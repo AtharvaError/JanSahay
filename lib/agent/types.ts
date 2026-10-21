@@ -188,7 +188,7 @@ export interface AgentResponse {
   profile: UserProfile;
   toolCalls: ToolTrace[];
   artifacts: AgentArtifacts;
-  engine: "claude" | "offline";
+  engine: "claude" | "sarvam" | "offline";
 }
 
 export interface ImageAttachment {

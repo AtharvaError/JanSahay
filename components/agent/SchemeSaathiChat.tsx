@@ -42,7 +42,7 @@ export default function SchemeSaathiChat({ className }: { className?: string }) 
   const [speaking, setSpeaking] = useState(false);
   const [speakReplies, setSpeakReplies] = useState(true);
   const [voiceMode, setVoiceMode] = useState(false);
-  const [engine, setEngine] = useState<"claude" | "offline" | null>(null);
+  const [engine, setEngine] = useState<"claude" | "sarvam" | "offline" | null>(null);
   const [dismissedDrafts, setDismissedDrafts] = useState<Set<string>>(new Set());
   const [resolvedExtractions, setResolvedExtractions] = useState<Set<string>>(new Set());
 
@@ -140,15 +140,20 @@ export default function SchemeSaathiChat({ className }: { className?: string }) 
     if (started.current && messages.some(m => m.role === "user")) return;
     started.current = true;
     agentState.current = undefined;
+    // The saved language loads just after mount, so a greeting for the default language may
+    // still be in flight — drop it so a stale (wrong-language) greeting never wins the race.
+    let cancelled = false;
     (async () => {
       setBusy(true);
       const data = await callAgent("__start__").catch(() => null);
+      if (cancelled) return;
       setBusy(false);
       if (!data) return;
       agentState.current = (data as { state?: unknown }).state;
       setMessages([{ id: newId(), role: "assistant", content: data.reply, toolCalls: data.toolCalls, artifacts: data.artifacts }]);
     })();
-    fetch("/api/agent").then(r => r.json()).then(j => setEngine(j.engine)).catch(() => {});
+    fetch("/api/agent").then(r => r.json()).then(j => { if (!cancelled) setEngine(j.engine); }).catch(() => {});
+    return () => { cancelled = true; };
   }, [lang]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Controls ──────────────────────────────────────────────────────────────
@@ -186,7 +191,7 @@ export default function SchemeSaathiChat({ className }: { className?: string }) 
   const uploadDocument = async (image: ImageAttachment) => {
     if (busyRef.current) return;
     // With Claude the agent reads it via its extract_document tool; otherwise call the extractor directly.
-    if (engine === "claude") return send(docUi(lang, "photoSent"), { attachment: image });
+    if (engine === "claude" || engine === "sarvam") return send(docUi(lang, "photoSent"), { attachment: image });
     setMessages(prev => [...prev, { id: newId(), role: "user", content: docUi(lang, "photoSent") }]);
     busyRef.current = true;
     setBusy(true);
@@ -253,7 +258,7 @@ export default function SchemeSaathiChat({ className }: { className?: string }) 
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-white">{ui(lang, "saathiTitle")}</p>
           <p className="text-[11px] text-slate-400 truncate">
-            {status ?? (engine === "claude" ? "Claude AI · tool calling" : engine === "offline" ? "Offline agent · tool calling" : "…")}
+            {status ?? (engine === "claude" ? "Claude AI · tool calling" : engine === "sarvam" ? "Sarvam AI · tool calling" : engine === "offline" ? "Offline agent · tool calling" : "…")}
             {voiceLabel && <span className="text-slate-500" title="Voice source"> · {voiceLabel}</span>}
           </p>
         </div>
@@ -296,7 +301,7 @@ export default function SchemeSaathiChat({ className }: { className?: string }) 
               <div className={cn("w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0", m.role === "assistant" ? "bg-blue-600/30" : "bg-emerald-600/30")}>
                 {m.role === "assistant" ? <Bot size={14} className="text-blue-300" /> : <User size={14} className="text-emerald-300" />}
               </div>
-              <div className={cn("max-w-[85%] space-y-2", m.role === "user" && "items-end flex flex-col")}>
+              <div className={cn("max-w-[85%] min-w-0 space-y-2", m.role === "user" && "items-end flex flex-col")}>
                 <div className={cn(
                   "px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-line",
                   m.role === "assistant" ? "bg-surface-2 text-slate-200 rounded-tl-sm border border-navy-light/30" : "bg-blue-600 text-white rounded-tr-sm",
@@ -313,7 +318,7 @@ export default function SchemeSaathiChat({ className }: { className?: string }) 
                 {m.toolCalls && m.toolCalls.length > 0 && (
                   <div className="flex flex-wrap gap-1" aria-label={ui(lang, "toolsUsed")}>
                     {m.toolCalls.map((t, i) => (
-                      <span key={i} title={JSON.stringify(t.input)} className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/25 text-purple-300">
+                      <span key={i} title={JSON.stringify(t.input)} className="inline-flex items-center gap-1 max-w-full truncate text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/25 text-purple-300">
                         <Wrench size={9} /> {t.name} · {t.summary}
                       </span>
                     ))}

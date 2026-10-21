@@ -14,6 +14,20 @@ import { saveApplication, upsertCitizen } from "@/lib/server/store.server";
  * flag that is only sent when the citizen presses "Confirm & Submit" in the review card.
  * The agent has no tool that can call this endpoint.
  */
+/**
+ * Never keep a full Aadhaar or bank account number, even if the citizen types one into the review card:
+ * Aadhaar/account fields keep only the last 4 digits, and any 12-digit run elsewhere is masked too.
+ */
+function maskIdNumbers(field: string, value: string): string {
+  const keepLast4 = (digits: string) => `${"X".repeat(Math.max(0, digits.length - 4))}${digits.slice(-4)}`;
+  if (/aadhaar|account|ration card/i.test(field)) {
+    const digits = value.replace(/\D/g, "");
+    if (digits.length > 4) return /aadhaar/i.test(field) && digits.length === 12 ? `XXXX XXXX ${digits.slice(-4)}` : keepLast4(digits);
+    return value;
+  }
+  return value.replace(/(?<!\d)\d{4}[\s-]?\d{4}[\s-]?\d{4}(?!\d)/g, m => `XXXX XXXX ${m.replace(/\D/g, "").slice(-4)}`);
+}
+
 export async function POST(req: NextRequest) {
   let body: { draft?: ApplicationDraft; fields?: DraftField[]; confirmedByUser?: boolean; lang?: LangCode };
   try {
@@ -33,12 +47,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Unknown or tampered draft." }, { status: 400 });
   }
 
-  const finalFields = (Array.isArray(fields) ? fields : draft.fields).map(f => ({
-    field: String(f.field).slice(0, 120),
-    value: String(f.value ?? "").slice(0, 200).trim(),
-    source: f.source,
-    hint: String(f.hint ?? "").slice(0, 300),
-  }));
+  const finalFields = (Array.isArray(fields) ? fields : draft.fields).map(f => {
+    const field = String(f.field).slice(0, 120);
+    return {
+      field,
+      value: maskIdNumbers(field, String(f.value ?? "").slice(0, 200).trim()),
+      source: f.source,
+      hint: String(f.hint ?? "").slice(0, 300),
+    };
+  });
   const empty = finalFields.filter(f => !f.value).map(f => f.field);
   if (empty.length) {
     return NextResponse.json({ success: false, error: "Some fields are still empty.", missing: empty }, { status: 422 });

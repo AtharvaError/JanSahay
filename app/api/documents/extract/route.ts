@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { clientIp, rateLimit } from "@/lib/server/ratelimit.server";
 import Anthropic from "@anthropic-ai/sdk";
 import { ExtractionUnavailableError, extractDocument, extractionConfigured, validAttachment } from "@/lib/agent/extract.server";
-import { mergeExtraction } from "@/lib/agent/tools.server";
+import { mergeExtraction, sanitizeProfile } from "@/lib/agent/tools.server";
 import type { DocType, UserProfile } from "@/lib/agent/types";
 import { DOC_TYPES } from "@/lib/agent/types";
 
@@ -12,6 +13,9 @@ import { DOC_TYPES } from "@/lib/agent/types";
  * The photo is only forwarded to Claude for reading; it is never stored.
  */
 export async function POST(req: NextRequest) {
+  // Protect the shared API credits: 15 requests per minute per client.
+  const wait = rateLimit(`extract:${clientIp(req.headers)}`, [{ max: 15, windowMs: 60_000 }]);
+  if (wait) return NextResponse.json({ success: false, error: `Too many requests. Try again in ${wait} seconds.` }, { status: 429, headers: { "Retry-After": String(wait) } });
   let body: { action?: string; image?: unknown; docType?: string; fields?: Record<string, unknown>; profile?: UserProfile };
   try {
     body = await req.json();
@@ -24,7 +28,7 @@ export async function POST(req: NextRequest) {
     if (!docType || !body.fields || typeof body.fields !== "object") {
       return NextResponse.json({ success: false, error: "docType and fields are required" }, { status: 400 });
     }
-    const profile = mergeExtraction(body.profile ?? {}, docType, body.fields);
+    const profile = mergeExtraction(sanitizeProfile(body.profile), docType, body.fields);
     return NextResponse.json({ success: true, data: { profile } });
   }
 

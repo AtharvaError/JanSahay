@@ -60,6 +60,13 @@ const STATES: [string, (string | RegExp)[]][] = [
   ["Goa", [/\bgoa\b/, "गोवा"]],
 ];
 
+/** Canonical English state name for any spelling/script we recognise (e.g. "उत्तर प्रदेश", "UP"). */
+export function normalizeState(text: string): string | undefined {
+  const t = normalizeDigits(text).toLowerCase();
+  for (const [state, words] of STATES) if (state.toLowerCase() === t || any(t, words)) return state;
+  return undefined;
+}
+
 const YES = [/^(yes|yeah|yep|haan?|ha|ji|hanji|ho)\b/, "हाँ", "हां", "जी", "होय", "हो ", "হ্যাঁ", "হাঁ", "ஆம்", "ஆமா", "అవును", "హా", "હા", "ಹೌದು"];
 const NO = [/^(no|nope|nahi|nahin|nai|na)\b/, "नहीं", "नही", "नाही", "ना ", "না", "নেই", "இல்லை", "లేదు", "కాదు", "ના", "નથી", "ಇಲ್ಲ"];
 

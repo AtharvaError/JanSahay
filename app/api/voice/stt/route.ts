@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { clientIp, rateLimit } from "@/lib/server/ratelimit.server";
 import type { LangCode } from "@/lib/translations";
 import { getSpeechProvider, LANGS, speechStatus } from "@/lib/speech/provider";
 
@@ -6,6 +7,9 @@ const MAX_BYTES = 5 * 1024 * 1024; // ~20 s of opus is well under this
 
 /** POST multipart { file, lang } → { transcript } from the configured speech provider. */
 export async function POST(req: NextRequest) {
+  // Protect the shared API credits: 60 requests per minute per client.
+  const wait = rateLimit(`stt:${clientIp(req.headers)}`, [{ max: 60, windowMs: 60_000 }]);
+  if (wait) return NextResponse.json({ success: false, error: `Too many requests. Try again in ${wait} seconds.` }, { status: 429, headers: { "Retry-After": String(wait) } });
   const provider = getSpeechProvider();
   if (!provider) return NextResponse.json({ success: false, error: "No speech provider configured" }, { status: 503 });
 

@@ -21,16 +21,23 @@ and **tracks follow-ups**.
 
 ## Agent engines
 
-* **Claude (recommended)** — set `ANTHROPIC_API_KEY` in `.env.local`. `lib/agent/claude.ts` runs a
-  tool-use loop with Claude (`claude-opus-5-5`) over the same tools, replying in the user's language.
+* **Sarvam AI (free tier, default)** — set `SARVAM_API_KEY`. One key powers everything:
+  `lib/agent/sarvam.ts` runs an OpenAI-style tool-calling loop on `sarvam-105b-conversations`
+  (~1 s per turn, native Indian languages), documents are read by Sarvam Vision
+  (`lib/agent/extract.server.ts`), and speech uses Sarvam TTS/STT.
+* **Claude (optional, paid)** — set `ANTHROPIC_API_KEY`; `lib/agent/claude.ts` runs the same tools on
+  `claude-opus-5-5`. `LLM_PROVIDER` picks the engine; if it fails, the app falls back to Sarvam, then offline.
 * **Offline** — with no key, `lib/agent/offline.ts` runs a deterministic multilingual agent that calls
-  the same tools. The tool calls are shown as chips under each reply in both modes.
+  the same tools. After every LLM turn the same parser also fills any fact the model missed.
+
+Tool calls are shown as chips under each reply in every mode. All paid endpoints (agent, document
+reading, TTS/STT, OTP) are rate-limited per client (`lib/server/ratelimit.server.ts`).
 
 ## Running
 
 ```bash
 npm install
-cp .env.example .env.local   # optionally add ANTHROPIC_API_KEY
+cp .env.example .env.local   # add your free SARVAM_API_KEY
 npm run dev
 ```
 

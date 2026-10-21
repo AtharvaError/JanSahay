@@ -3,6 +3,7 @@ import { issueOtp } from "@/lib/server/otp.server";
 import { getProvider } from "@/lib/server/notify.server";
 import { normaliseMobile } from "@/lib/server/session.server";
 import { asLang } from "@/lib/server/store.server";
+import { clientIp, rateLimit } from "@/lib/server/ratelimit.server";
 import { MSG, fill } from "@/lib/agent/i18n";
 
 /**
@@ -16,6 +17,18 @@ export async function POST(req: NextRequest) {
     const mobile = normaliseMobile(body.mobile);
     if (!mobile) {
       return NextResponse.json({ success: false, error: "Valid 10-digit mobile number required" }, { status: 400 });
+    }
+
+    // Per number: 1 code / 30 s and 5 / hour (also stops resending to reset the wrong-guess counter).
+    // Per IP: 20 / hour, so one client can't spray codes at many numbers.
+    const wait =
+      rateLimit(`otp:ip:${clientIp(req.headers)}`, [{ max: 20, windowMs: 3_600_000 }]) ||
+      rateLimit(`otp:mobile:${mobile}`, [{ max: 1, windowMs: 30_000 }, { max: 5, windowMs: 3_600_000 }]);
+    if (wait) {
+      return NextResponse.json(
+        { success: false, error: `Too many codes requested. Try again in ${wait} seconds.`, retryAfter: wait },
+        { status: 429, headers: { "Retry-After": String(wait) } },
+      );
     }
 
     const lang = asLang(body.lang);

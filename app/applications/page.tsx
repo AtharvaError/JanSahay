@@ -73,12 +73,12 @@ export default function ApplicationsPage() {
 
   return (
     <div className="min-h-screen px-4 py-8 max-w-5xl mx-auto">
-      <div className="flex items-start justify-between mb-8 gap-3">
+      <div className="flex flex-wrap items-start justify-between mb-8 gap-3">
         <div>
           <h1 className="text-2xl font-bold text-white">{ui(lang, "myApplications")}</h1>
           <p className="text-slate-400 mt-1 text-sm">Status, timeline and reminders for applications you confirmed.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button onClick={readStatus} aria-label="Read status aloud" className="p-2 rounded-lg border border-navy-light/40 text-blue-300 hover:bg-blue-500/10"><Volume2 size={16} /></button>
           <button
             onClick={() => refresh()}

@@ -52,7 +52,7 @@ export default function EligibilityPage() {
 
       <div className="grid lg:grid-cols-5 gap-6">
         {/* Main panel */}
-        <div className="lg:col-span-3">
+        <div className="lg:col-span-3 min-w-0">
           {mode === "schemes" ? (
             <motion.div
               key="schemes"
@@ -74,7 +74,7 @@ export default function EligibilityPage() {
         </div>
 
         {/* Tips panel */}
-        <div className="lg:col-span-2 space-y-4">
+        <div className="lg:col-span-2 space-y-4 min-w-0">
           <div className="glass rounded-2xl p-5 border border-blue-500/20">
             <h3 className="text-sm font-semibold text-white mb-3">💡 {t("howMatchingWorks")}</h3>
             <ul className="space-y-2.5 text-sm text-slate-400">

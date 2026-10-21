@@ -4,6 +4,7 @@ import { schemes } from "@/lib/data/schemes";
 import { evaluateAll, evaluateScheme } from "./eligibility";
 import { buildChecklist, prefillForm } from "./documents";
 import { extractDocument } from "./extract.server";
+import { normalizeState } from "./nlu";
 import type {
   AgentArtifacts, ApplicationDraft, DocType, FollowUp, ImageAttachment, ToolTrace, TrackedApplication, UserProfile,
 } from "./types";
@@ -56,10 +57,27 @@ export function mergeProfile(base: UserProfile, patch: Record<string, unknown>):
       const digits = String(val).replace(/\D/g, "").slice(-10);
       if (digits.length === 10) out[key] = digits;
     } else {
-      out[key] = String(val).trim().slice(0, 120);
+      const text = String(val).replace(/[<>]/g, "").trim().slice(0, 120);
+      // Rules compare English state names; models may answer in Hindi or other scripts.
+      if (text) out[key] = key === "state" ? normalizeState(text) ?? text : text;
     }
   }
   return out as UserProfile;
+}
+
+/** Validate a profile that came from the browser: every field goes through the same checks as tool input. */
+export function sanitizeProfile(raw: unknown): UserProfile {
+  if (!raw || typeof raw !== "object") return {};
+  const r = raw as Record<string, unknown>;
+  const p = mergeProfile({}, r);
+  if (Array.isArray(r.uploadedDocs)) p.uploadedDocs = r.uploadedDocs.filter((d): d is DocType => DOC_TYPES.includes(d as DocType));
+  if (r.docSources && typeof r.docSources === "object") {
+    p.docSources = Object.fromEntries(
+      Object.entries(r.docSources as Record<string, unknown>)
+        .filter(([k, v]) => PROFILE_KEYS.includes(k as keyof UserProfile) && DOC_TYPES.includes(v as DocType)),
+    ) as UserProfile["docSources"];
+  }
+  return p;
 }
 
 /**

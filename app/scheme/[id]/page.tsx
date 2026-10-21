@@ -5,6 +5,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowLeft, Bookmark, BookmarkCheck, Share2, CheckCircle, Clock, Circle, ExternalLink } from "lucide-react";
 import { schemes, stepGuide } from "@/lib/data/schemes";
+import SchemeNotFound from "@/components/ui/SchemeNotFound";
 import { cn } from "@/lib/utils";
 import { useLang } from "@/contexts/LanguageContext";
 import { useSavedSchemes } from "@/contexts/SavedSchemesContext";
@@ -24,7 +25,12 @@ const stepStatusIcon = (s: string) => {
 
 export default function SchemeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const scheme = schemes.find(s => s.id === id) ?? schemes[0];
+  const scheme = schemes.find(s => s.id === id);
+  if (!scheme) return <SchemeNotFound id={id} />;
+  return <SchemeDetailContent scheme={scheme} />;
+}
+
+function SchemeDetailContent({ scheme }: { scheme: (typeof schemes)[number] }) {
   const { t } = useLang();
   const { toggleSave, isSaved } = useSavedSchemes();
   const saved = isSaved(scheme.id);

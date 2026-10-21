@@ -4,6 +4,7 @@ import { use } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { schemes } from "@/lib/data/schemes";
+import SchemeNotFound from "@/components/ui/SchemeNotFound";
 import ApplicationWizard from "@/components/apply/ApplicationWizard";
 import LanguageToggle from "@/components/ui/LanguageToggle";
 import VoiceButton from "@/components/ui/VoiceButton";
@@ -11,7 +12,12 @@ import { useLang } from "@/contexts/LanguageContext";
 
 export default function ApplyPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const scheme = schemes.find(s => s.id === id) ?? schemes[0];
+  const scheme = schemes.find(s => s.id === id);
+  if (!scheme) return <SchemeNotFound id={id} />;
+  return <ApplyPageContent scheme={scheme} />;
+}
+
+function ApplyPageContent({ scheme }: { scheme: (typeof schemes)[number] }) {
   const { t } = useLang();
 
   return (
