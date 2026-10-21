@@ -1,36 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
+import { checkOtp } from "@/lib/server/otp.server";
+import { getDb } from "@/lib/server/db.server";
+import { maskMobile, normaliseMobile, setSession } from "@/lib/server/session.server";
+import { asLang, setOptIn, upsertCitizen } from "@/lib/server/store.server";
 
-const otpStore = new Map<string, { otp: string; expiresAt: number }>();
-
+/**
+ * Verify the code, then sign the citizen in (httpOnly session cookie keyed by the verified mobile).
+ * `optIn` records the explicit consent ticked on the connect screen; reminders are never sent without it.
+ */
 export async function POST(req: NextRequest) {
   try {
-    const { mobile, otp } = await req.json() as { mobile: string; otp: string };
-
-    if (!mobile || !otp) {
+    const body = await req.json() as { mobile?: string; otp?: string; optIn?: boolean; lang?: string };
+    const mobile = normaliseMobile(body.mobile);
+    if (!mobile || !body.otp) {
       return NextResponse.json({ success: false, error: "Mobile and OTP required" }, { status: 400 });
     }
-
-    // For demo: accept any OTP where mock code is "123456" or stored matches
-    const stored = otpStore.get(mobile);
-    const isValid = otp === "123456" || (stored && stored.otp === otp && stored.expiresAt > Date.now());
-
-    if (!isValid) {
+    if (!(await checkOtp(mobile, String(body.otp)))) {
       return NextResponse.json({ success: false, error: "Invalid or expired OTP" }, { status: 401 });
     }
 
-    otpStore.delete(mobile);
+    await setSession(mobile);
+    const optIn = body.optIn === true;
+    const db = await getDb();
+    if (db) {
+      await upsertCitizen(db, mobile, { lang: asLang(body.lang) });
+      await setOptIn(db, mobile, optIn);
+    }
 
-    // In production: update user record, store whatsapp_connected: true, mobile
     return NextResponse.json({
       success: true,
       message: "WhatsApp connected successfully",
-      data: {
-        mobile,
-        connectedAt: new Date().toISOString(),
-        features: ["deadline_alerts", "status_updates", "ai_guidance", "scheme_discovery"],
-      },
+      data: { mobile: maskMobile(mobile), connectedAt: new Date().toISOString(), optIn: Boolean(db) && optIn, serverSync: Boolean(db) },
     });
-  } catch {
+  } catch (e) {
+    console.error("[whatsapp] verify failed", e);
     return NextResponse.json({ success: false, error: "Verification failed" }, { status: 500 });
   }
 }

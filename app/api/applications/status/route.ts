@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { ApplicationStatus, TrackedApplication } from "@/lib/agent/types";
+import { getDb } from "@/lib/server/db.server";
+import { getSessionMobile } from "@/lib/server/session.server";
+import { saveApplication } from "@/lib/server/store.server";
 
 // Simulated department-side progression (no public government status API is available).
 // submitted → under_verification (after 30 s) → approved (after 3 min) — demo-speed timings.
@@ -34,6 +37,13 @@ export async function POST(req: NextRequest) {
     }
     return { ...app, status, timeline };
   });
+
+  // Keep the server copy in step for signed-in citizens (writes are scoped to their own rows).
+  const mobile = await getSessionMobile();
+  const db = mobile ? await getDb().catch(() => null) : null;
+  if (mobile && db) {
+    for (const app of updated) await saveApplication(db, mobile, app).catch(e => console.error("[status] persist failed", e));
+  }
 
   return NextResponse.json({ success: true, data: updated });
 }
